@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Firebase credentials
+firebase_credentials.json
+*.json
+!package.json
+
+# Temp
+temp_images/
+*.jpg
+*.png
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# YOLOv8 models
+*.pt
+runs/
