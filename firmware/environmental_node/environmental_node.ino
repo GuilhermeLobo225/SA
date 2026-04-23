@@ -41,27 +41,28 @@
 #define GMT_OFFSET 0
 #define DST_OFFSET 3600
 
-// ======================== PINOS ========================
-// DHT11
+// ======================== PINOS (ATUALIZADO PARA ESP32-S3) ========================
+// DHT11 (Pino digital seguro)
 #define DHT_PIN   4
 #define DHT_TYPE  DHT11
 
-// MQ-135 (analógico)
-#define MQ135_PIN 34
+// MQ-135 (Precisa de pino analógico ADC)
+#define MQ135_PIN 5 // ADC1_CH4
 
-// LDR (analógico, divisor de tensão com 10kΩ)
-#define LDR_PIN   35
+// Módulo Fotodíodo
+#define PHOTO_A_PIN  6  // Saída analógica (ADC1_CH5) para medir a intensidade exata
+#define PHOTO_D_PIN  7  // Saída digital (opcional) ligada ao potenciómetro do módulo
 
-// KY-038 (analógico + digital)
-#define KY038_A_PIN 32   // Saída analógica
-#define KY038_D_PIN 33   // Saída digital (limiar ajustável no potenciómetro)
+// KY-038 (Sensor de som - se ainda fores usar)
+#define KY038_A_PIN  8  // Saída analógica (ADC1_CH7)
+#define KY038_D_PIN  9  // Saída digital
 
-// LED RGB (cátodo comum)
-#define LED_R_PIN 25
-#define LED_G_PIN 26
-#define LED_B_PIN 27
+// LED RGB (Pinos PWM seguros)
+#define LED_R_PIN 15
+#define LED_G_PIN 16
+#define LED_B_PIN 17
 
-// PWM channels para LED
+// PWM channels para LED (A configuração mantém-se)
 #define PWM_FREQ  5000
 #define PWM_RES   8
 #define CH_R 0
