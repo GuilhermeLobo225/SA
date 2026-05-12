@@ -1,0 +1,31 @@
+/* Variáveis de cor baseadas no Portal UMinho / SASUM */
+:root {
+    --uminho-red: #A8001F;
+    --uminho-red-dark: #820018;
+    --uminho-blue: #005A9C;
+}
+
+/* Classes utilitárias personalizadas para serem usadas com o Tailwind */
+.uminho-bg-red { background-color: var(--uminho-red); }
+.uminho-text-red { color: var(--uminho-red); }
+.uminho-text-blue { color: var(--uminho-blue); }
+
+/* Estilos da Sidebar (Navegação) */
+.sidebar-link {
+    display: block;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    border-bottom: 1px solid var(--uminho-red-dark);
+    transition: background-color 0.3s ease;
+    text-transform: uppercase;
+}
+
+.sidebar-link:hover {
+    background-color: var(--uminho-red-dark);
+}
+
+.sidebar-link.active {
+    background-color: var(--uminho-red-dark);
+    font-weight: bold;
+    border-left: 4px solid white;
+}
