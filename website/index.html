@@ -1,64 +1,108 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Salas de Estudo - Portal UMinho</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bibliotecas — Portal UMinho</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-gray-100 font-sans flex h-screen overflow-hidden">
+<body>
 
-    <aside class="w-64 uminho-bg-red text-white flex flex-col hidden md:flex">
-        <div class="p-4 bg-white flex justify-center items-center h-24">
-            <img src="logo.png" alt="Universidade do Minho" class="h-16 object-contain">
+<div class="layout">
+
+  <!-- ===================== Sidebar ===================== -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="logo.png" alt="Universidade do Minho">
+    </div>
+    <div class="sidebar-header">
+      <h2>Bibliotecas UMinho</h2>
+      <p>Serviço de Documentação e Bibliotecas</p>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="index.html" class="sidebar-link active"><i class="fa-solid fa-building-columns"></i>Bibliotecas</a>
+      <a href="#catalogo"    class="sidebar-link"><i class="fa-solid fa-magnifying-glass"></i>Catálogo</a>
+      <a href="#"            class="sidebar-link"><i class="fa-solid fa-book-open"></i>Biblioteca Digital</a>
+      <a href="#"            class="sidebar-link"><i class="fa-solid fa-handshake"></i>Serviços</a>
+      <a href="#"            class="sidebar-link"><i class="fa-solid fa-circle-info"></i>Apoio</a>
+      <a href="#"            class="sidebar-link"><i class="fa-solid fa-right-to-bracket"></i>Minha conta</a>
+    </nav>
+    <div class="sidebar-footer">
+      © UMinho · SDUM
+    </div>
+  </aside>
+
+  <!-- ===================== Main ===================== -->
+  <main class="main">
+
+    <header class="topbar">
+      <div class="crumbs">
+        <a href="index.html">Portal</a>
+        <span class="sep">/</span>
+        <span class="current">Bibliotecas</span>
+      </div>
+      <div class="user">
+        <span>Utilizador</span>
+        <i class="fa-solid fa-circle-user"></i>
+      </div>
+    </header>
+
+    <section class="content">
+
+      <!-- ===== Cabeçalho da página ===== -->
+      <div class="page-header">
+        <div>
+          <div class="page-eyebrow">Serviço de Documentação e Bibliotecas</div>
+          <h1 class="page-title">Bibliotecas da Universidade do Minho</h1>
+          <p class="page-subtitle">
+            Sete pontos de serviço distribuídos pelos campi de Gualtar, Azurém e Couros.
+            A Biblioteca Geral integra um sistema-piloto de sensorização de ocupação e conforto ambiental,
+            desenvolvido no âmbito da unidade curricular de Sensorização e Ambiente (MIA, 2025/26).
+          </p>
         </div>
-        
-        <div class="p-4 uminho-bg-red">
-            <h2 class="text-sm font-semibold tracking-wider">Universidade do Minho</h2>
-            <p class="text-xs text-gray-300">Serviços de Ação Social</p>
-        </div>
-        <nav class="flex-1 mt-4">
-            <a href="#" class="sidebar-link">MINHA CONTA</a>
-            <a href="#" class="sidebar-link">ACESSOS</a>
-            <a href="#" class="sidebar-link">RESERVAS</a>
-            <a href="#" class="sidebar-link active">SALAS DE ESTUDO</a>
-            <a href="#" class="sidebar-link">DOCUMENTOS</a>
-        </nav>
-    </aside>
+      </div>
 
-    <main class="flex-1 flex flex-col h-screen overflow-y-auto">
-        <header class="bg-white shadow-sm h-16 flex items-center justify-end px-8 shrink-0">
-            <div class="flex items-center text-sm text-gray-600">
-                <span class="mr-2">Utilizador</span>
-                <i class="fa-solid fa-user-circle text-2xl uminho-text-blue"></i>
-            </div>
-        </header>
+      <!-- ===== Lista de bibliotecas ===== -->
+      <div id="library-grid" class="library-grid">
+        <div class="loading">A carregar bibliotecas…</div>
+      </div>
 
-        <div class="p-8 flex-1">
-            <h1 class="text-2xl font-light text-gray-800 mb-6 uppercase">Monitorização de Salas de Estudo</h1>
-            
-            <div id="loading" class="text-center py-10 text-gray-500 font-medium">A carregar dados da API...</div>
-            
-            <div id="rooms-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></div>
+      <!-- ===== Pesquisa do catálogo ===== -->
+      <section id="catalogo" class="section">
+        <div class="section-header">
+          <h2>Catálogo bibliográfico</h2>
+          <span class="count" id="book-count">—</span>
         </div>
 
-        <footer class="py-6 border-t border-gray-200 text-center text-sm text-gray-500 bg-white">
-            <p class="font-semibold text-gray-700">🏛️ Sala de Estudo Inteligente | Sensorização e Ambiente (2025/26)</p>
-            <p class="mt-2">
-                Desenvolvido por: 
-                <span class="font-medium text-gray-600">Luís Silva</span> | 
-                <span class="font-medium text-gray-600">Pedro Reis</span> | 
-                <span class="font-medium text-gray-600">Guilherme Pinto</span> | 
-                <span class="font-medium text-gray-600">Pedro Gomes</span>
-            </p>
-        </footer>
-    </main>
+        <div class="search-wrap">
+          <i class="fa-solid fa-magnifying-glass icon"></i>
+          <input id="search-input" type="text" placeholder="Pesquisar por título, autor ou cota…" autocomplete="off">
+        </div>
 
-    <script src="app.js"></script>
+        <div class="search-filters" id="area-filters">
+          <button class="filter-chip active" data-area="">Todas as áreas</button>
+          <!-- chips inseridos por JS -->
+        </div>
+
+        <div id="book-results"></div>
+      </section>
+
+    </section>
+
+    <footer class="site-footer">
+      <strong>Sala de Estudo Inteligente</strong> · Sensorização e Ambiente · MIA · UMinho 2025/26
+      <div class="authors">
+        Luís Silva &nbsp;·&nbsp; Pedro Reis &nbsp;·&nbsp; Guilherme Pinto &nbsp;·&nbsp; Pedro Gomes
+      </div>
+    </footer>
+
+  </main>
+
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/bibliotecas.js"></script>
 </body>
 </html>

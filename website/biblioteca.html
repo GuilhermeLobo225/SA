@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biblioteca — Portal UMinho</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ===================== Sidebar ===================== -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="logo.png" alt="Universidade do Minho">
+    </div>
+    <div class="sidebar-header">
+      <h2>Bibliotecas UMinho</h2>
+      <p>Serviço de Documentação e Bibliotecas</p>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="index.html" class="sidebar-link active"><i class="fa-solid fa-building-columns"></i>Bibliotecas</a>
+      <a href="index.html#catalogo" class="sidebar-link"><i class="fa-solid fa-magnifying-glass"></i>Catálogo</a>
+      <a href="#" class="sidebar-link"><i class="fa-solid fa-book-open"></i>Biblioteca Digital</a>
+      <a href="#" class="sidebar-link"><i class="fa-solid fa-handshake"></i>Serviços</a>
+      <a href="#" class="sidebar-link"><i class="fa-solid fa-circle-info"></i>Apoio</a>
+      <a href="#" class="sidebar-link"><i class="fa-solid fa-right-to-bracket"></i>Minha conta</a>
+    </nav>
+    <div class="sidebar-footer">© UMinho · SDUM</div>
+  </aside>
+
+  <!-- ===================== Main ===================== -->
+  <main class="main">
+
+    <header class="topbar">
+      <div class="crumbs">
+        <a href="index.html">Portal</a>
+        <span class="sep">/</span>
+        <a href="index.html">Bibliotecas</a>
+        <span class="sep">/</span>
+        <span class="current" id="crumb-nome">…</span>
+      </div>
+      <div class="user">
+        <span>Utilizador</span>
+        <i class="fa-solid fa-circle-user"></i>
+      </div>
+    </header>
+
+    <section class="content" id="detail-content">
+      <div class="loading">A carregar dados da biblioteca…</div>
+    </section>
+
+    <footer class="site-footer">
+      <strong>Sala de Estudo Inteligente</strong> · Sensorização e Ambiente · MIA · UMinho 2025/26
+      <div class="authors">
+        Luís Silva &nbsp;·&nbsp; Pedro Reis &nbsp;·&nbsp; Guilherme Pinto &nbsp;·&nbsp; Pedro Gomes
+      </div>
+    </footer>
+
+  </main>
+
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/biblioteca-detalhe.js"></script>
+</body>
+</html>
