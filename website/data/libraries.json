@@ -1,0 +1,135 @@
+{
+  "bibliotecas": [
+    {
+      "id": "bg",
+      "nome": "Biblioteca Geral da UMinho",
+      "sigla": "BGUM",
+      "campus": "Gualtar",
+      "cidade": "Braga",
+      "endereco": "Complexo Pedagógico II, Campus de Gualtar, 4710-057 Braga",
+      "telefone": "(+351) 253 604 150",
+      "email": "bgum@sdum.uminho.pt",
+      "horario": {
+        "letivo": "2ª a 6ª: 09:00–22:00 | Sábado: 10:00–19:00",
+        "ferias": "2ª a 6ª: 09:00–18:00"
+      },
+      "lugares": 280,
+      "descricao": "Biblioteca principal do campus de Gualtar. Reúne fundo bibliográfico transversal a todas as áreas do conhecimento.",
+      "sensorizacao": true,
+      "api_room_id": "bg"
+    },
+    {
+      "id": "az",
+      "nome": "Biblioteca da UMinho - Azurém",
+      "sigla": "BPGA",
+      "campus": "Azurém",
+      "cidade": "Guimarães",
+      "endereco": "Campus de Azurém, 4800-058 Guimarães",
+      "telefone": "(+351) 253 510 180",
+      "email": "biblioteca.az@sdum.uminho.pt",
+      "horario": {
+        "letivo": "2ª a 6ª: 09:00–21:00 | Sábado: 10:00–18:00",
+        "ferias": "2ª a 6ª: 09:00–18:00"
+      },
+      "lugares": 220,
+      "descricao": "Serve o campus de Azurém, com forte foco em Engenharia, Arquitetura e Design.",
+      "sensorizacao": false
+    },
+    {
+      "id": "dir",
+      "nome": "Biblioteca de Direito",
+      "sigla": "BDIR",
+      "campus": "Gualtar",
+      "cidade": "Braga",
+      "endereco": "Escola de Direito, Campus de Gualtar, 4710-057 Braga",
+      "telefone": "(+351) 253 601 800",
+      "email": "biblioteca.direito@sdum.uminho.pt",
+      "horario": {
+        "letivo": "2ª a 6ª: 09:00–20:00",
+        "ferias": "2ª a 6ª: 09:30–17:30"
+      },
+      "lugares": 80,
+      "descricao": "Especializada em ciências jurídicas e legislação nacional, europeia e internacional.",
+      "sensorizacao": false
+    },
+    {
+      "id": "pm",
+      "nome": "Biblioteca Prof. Joaquim Pinto Machado",
+      "sigla": "BJPM",
+      "campus": "Gualtar",
+      "cidade": "Braga",
+      "endereco": "Escola de Medicina, Campus de Gualtar, 4710-057 Braga",
+      "telefone": "(+351) 253 604 870",
+      "email": "biblioteca.medicina@sdum.uminho.pt",
+      "horario": {
+        "letivo": "2ª a 6ª: 09:00–20:00",
+        "ferias": "2ª a 6ª: 10:00–17:00"
+      },
+      "lugares": 60,
+      "descricao": "Especializada em Ciências da Saúde, ao serviço da Escola de Medicina.",
+      "sensorizacao": false
+    },
+    {
+      "id": "np",
+      "nome": "Biblioteca Nuno Portas",
+      "sigla": "BNP",
+      "campus": "Azurém",
+      "cidade": "Guimarães",
+      "endereco": "Escola de Arquitetura, Arte e Design, Campus de Azurém, 4800-058 Guimarães",
+      "telefone": "(+351) 253 510 600",
+      "email": "biblioteca.arquitetura@sdum.uminho.pt",
+      "horario": {
+        "letivo": "2ª a 6ª: 09:30–19:30",
+        "ferias": "2ª a 6ª: 10:00–17:00"
+      },
+      "lugares": 70,
+      "descricao": "Dedicada a Arquitetura, Urbanismo e Estudos Urbanos.",
+      "sensorizacao": false
+    },
+    {
+      "id": "fmp",
+      "nome": "Biblioteca Fernão Mendes Pinto",
+      "sigla": "BFMP",
+      "campus": "Gualtar",
+      "cidade": "Braga",
+      "endereco": "Instituto Confúcio, Campus de Gualtar, 4710-057 Braga",
+      "telefone": "(+351) 253 601 800",
+      "email": "biblioteca.fmp@sdum.uminho.pt",
+      "horario": {
+        "letivo": "2ª a 6ª: 10:00–18:00",
+        "ferias": "Encerrada"
+      },
+      "lugares": 30,
+      "descricao": "Especializada em Estudos Orientais e cultura sino-portuguesa.",
+      "sensorizacao": false
+    },
+    {
+      "id": "cou",
+      "nome": "Biblioteca do Campus de Couros",
+      "sigla": "BCOU",
+      "campus": "Couros",
+      "cidade": "Guimarães",
+      "endereco": "Campus de Couros, 4810-225 Guimarães",
+      "telefone": "(+351) 253 510 700",
+      "email": "biblioteca.couros@sdum.uminho.pt",
+      "horario": {
+        "letivo": "2ª a 6ª: 09:30–19:00",
+        "ferias": "2ª a 6ª: 10:00–17:00"
+      },
+      "lugares": 45,
+      "descricao": "Apoia as escolas e centros de investigação sediados no campus de Couros.",
+      "sensorizacao": false
+    }
+  ],
+  "bg_layout": {
+    "descricao": "Sala de Leitura - Piso 1 da BGUM. A zona A está abrangida pelo campo de visão do nó de visão; as restantes zonas não são monitorizadas pela versão atual do sistema.",
+    "zonas": [
+      { "id": "A", "nome": "Zona A - Mesas centrais", "lugares": 12, "monitorizada": true, "x": 30, "y": 30, "w": 40, "h": 25, "mesas": 2 },
+      { "id": "B", "nome": "Zona B - Janela norte", "lugares": 8, "monitorizada": false, "x": 5, "y": 5, "w": 20, "h": 20, "mesas": 1 },
+      { "id": "C", "nome": "Zona C - Janela sul", "lugares": 8, "monitorizada": false, "x": 75, "y": 5, "w": 20, "h": 20, "mesas": 1 },
+      { "id": "D", "nome": "Zona D - Cabines individuais", "lugares": 6, "monitorizada": false, "x": 5, "y": 60, "w": 20, "h": 30, "mesas": 6 },
+      { "id": "E", "nome": "Zona E - Mesa de grupo", "lugares": 10, "monitorizada": false, "x": 75, "y": 60, "w": 20, "h": 30, "mesas": 1 },
+      { "id": "F", "nome": "Zona F - Mesas longas", "lugares": 12, "monitorizada": false, "x": 30, "y": 65, "w": 40, "h": 25, "mesas": 2 }
+    ]
+  }
+}

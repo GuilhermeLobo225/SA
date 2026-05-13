@@ -1,28 +1,78 @@
-# Python
+# ============================================================
+# Python (processing/)
+# ============================================================
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 venv/
+env/
+*.egg-info/
 
-# Firebase credentials
+# ============================================================
+# Firebase / credenciais
+# ============================================================
 firebase_credentials.json
-*.json
-!package.json
+serviceAccountKey.json
+google-services.json
+*-firebase-adminsdk-*.json
+.env
+.env.local
 
-# Temp
+# ============================================================
+# YOLOv8 / ML
+# ============================================================
+*.pt
+*.onnx
+runs/
+weights/
+
+# ============================================================
+# Temporários / imagens capturadas
+# ============================================================
 temp_images/
+captures/
 *.jpg
-*.png
+*.jpeg
+# (mantém PNGs que sejam diagramas/screenshots do README)
+# Se quiseres excluir todos os PNGs gerados, descomenta:
+# *.png
 
-# IDE
+# ============================================================
+# Android / Gradle (app/)
+# ============================================================
+.gradle/
+build/
+app/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.iml
+
+# ============================================================
+# Arduino / firmware (firmware/)
+# ============================================================
+*.ino.cpp.o
+*.elf
+*.hex
+*.bin
+build/
+
+# ============================================================
+# IDEs
+# ============================================================
 .vscode/
 .idea/
 *.swp
+*.swo
+*~
 
+# ============================================================
 # OS
+# ============================================================
 .DS_Store
 Thumbs.db
-
-# YOLOv8 models
-*.pt
-runs/
+desktop.ini
