@@ -1,133 +1,141 @@
 /*
- * Sala de Estudo Inteligente — Nó de Visão
- * ESP32-CAM (AI-Thinker) + OV2640
+ * Sala de Estudo Inteligente — Nó de Visão (Vision_NODE)
+ * Placa: AI Thinker ESP32-CAM (OV2640)
  *
- * Captura uma imagem a cada 30 segundos e envia para Firebase Storage.
+ * Captura uma imagem a cada CAPTURE_INTERVAL e envia para Firebase Storage.
+ * Regista o caminho da imagem em /rooms/<ROOM_ID>/latest_image (RTDB).
  *
- * Bibliotecas necessárias (Arduino Library Manager):
- *   - Firebase ESP Client (by mobizt)
+ * Bibliotecas (lib_deps em platformio.ini):
+ *   - mobizt/Firebase Arduino Client Library for ESP8266 and ESP32
  *
- * Board: AI Thinker ESP32-CAM
- * Partition Scheme: Huge APP (3MB No OTA / 1MB SPIFFS)
+ * Esquema de partição recomendado: huge_app.csv
  */
 
+#include <Arduino.h>
 #include "esp_camera.h"
 #include <WiFi.h>
 #include <Firebase_ESP_Client.h>
 #include "addons/TokenHelper.h"
+#include "addons/RTDBHelper.h"
 #include "time.h"
 
 // ======================== CONFIGURAÇÃO ========================
 // Wi-Fi
-#define WIFI_SSID     "YOUR_WIFI_SSID"
-#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+#define WIFI_SSID      "YOUR_WIFI_SSID"
+#define WIFI_PASSWORD  "YOUR_WIFI_PASSWORD"
 
 // Firebase
-#define API_KEY       "YOUR_FIREBASE_API_KEY"
+#define API_KEY        "YOUR_FIREBASE_API_KEY"
 #define STORAGE_BUCKET "YOUR_PROJECT.appspot.com"
-#define DATABASE_URL   "https://YOUR_PROJECT.firebaseio.com"
-// Email/password de uma conta de serviço criada no Firebase Auth
-#define USER_EMAIL    "esp32cam@smartroom.local"
-#define USER_PASSWORD "YOUR_SERVICE_PASSWORD"
+#define DATABASE_URL   "https://YOUR_PROJECT-default-rtdb.firebaseio.com"
+#define USER_EMAIL     "esp32cam@smartroom.local"
+#define USER_PASSWORD  "YOUR_SERVICE_PASSWORD"
 
-// Sala
-#define ROOM_ID       "sala_b1_piso2"
+// Identificação da sala
+#define ROOM_ID        "sala_b1_piso2"
 
 // Intervalo de captura (ms)
-#define CAPTURE_INTERVAL 30000
+#define CAPTURE_INTERVAL 30000UL
 
 // NTP
 #define NTP_SERVER "pool.ntp.org"
-#define GMT_OFFSET 0
-#define DST_OFFSET 3600
+#define GMT_OFFSET  0
+#define DST_OFFSET  3600
 
 // ======================== PINOS ESP32-CAM (AI-Thinker) ========================
-#define PWDN_GPIO_NUM     32
-#define RESET_GPIO_NUM    -1
-#define XCLK_GPIO_NUM      0
-#define SIOD_GPIO_NUM     26
-#define SIOC_GPIO_NUM     27
-#define Y9_GPIO_NUM       35
-#define Y8_GPIO_NUM       34
-#define Y7_GPIO_NUM       39
-#define Y6_GPIO_NUM       36
-#define Y5_GPIO_NUM       21
-#define Y4_GPIO_NUM       19
-#define Y3_GPIO_NUM       18
-#define Y2_GPIO_NUM        5
-#define VSYNC_GPIO_NUM    25
-#define HREF_GPIO_NUM     23
-#define PCLK_GPIO_NUM     22
+#define PWDN_GPIO_NUM   32
+#define RESET_GPIO_NUM  -1
+#define XCLK_GPIO_NUM    0
+#define SIOD_GPIO_NUM   26
+#define SIOC_GPIO_NUM   27
+#define Y9_GPIO_NUM     35
+#define Y8_GPIO_NUM     34
+#define Y7_GPIO_NUM     39
+#define Y6_GPIO_NUM     36
+#define Y5_GPIO_NUM     21
+#define Y4_GPIO_NUM     19
+#define Y3_GPIO_NUM     18
+#define Y2_GPIO_NUM      5
+#define VSYNC_GPIO_NUM  25
+#define HREF_GPIO_NUM   23
+#define PCLK_GPIO_NUM   22
+#define FLASH_GPIO_NUM   4
 
-#define FLASH_GPIO_NUM     4
-
-// ======================== VARIÁVEIS GLOBAIS ========================
-FirebaseData fbdo;
-FirebaseAuth auth;
-FirebaseConfig config;
+// ======================== ESTADO GLOBAL ========================
+FirebaseData   fbdo;
+FirebaseAuth   auth;
+FirebaseConfig fbConfig;
 
 unsigned long lastCapture = 0;
-bool firebaseReady = false;
+bool          firebaseReady = false;
+
+// ======================== PROTÓTIPOS ========================
+void initCamera();
+void connectWiFi();
+String getTimestamp();
+void captureAndUpload();
 
 // ======================== SETUP ========================
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n[SmartRoom] Nó de Visão — Arranque");
+  delay(200);
+  Serial.println("\n[SmartRoom] Vision_NODE — Arranque");
 
   // Desligar flash LED
   pinMode(FLASH_GPIO_NUM, OUTPUT);
   digitalWrite(FLASH_GPIO_NUM, LOW);
 
-  // Inicializar câmara
   initCamera();
-
-  // Ligar Wi-Fi
   connectWiFi();
 
-  // Sincronizar relógio
+  // NTP
   configTime(GMT_OFFSET, DST_OFFSET, NTP_SERVER);
   Serial.println("[NTP] A sincronizar relógio...");
   struct tm timeinfo;
-  while (!getLocalTime(&timeinfo)) {
+  int ntpAttempts = 0;
+  while (!getLocalTime(&timeinfo) && ntpAttempts < 20) {
     delay(500);
+    ntpAttempts++;
   }
   Serial.println("[NTP] Relógio sincronizado.");
 
-  // Inicializar Firebase
-  config.api_key = API_KEY;
-  config.database_url = DATABASE_URL;
-  auth.user.email = USER_EMAIL;
-  auth.user.password = USER_PASSWORD;
-  config.token_status_callback = tokenStatusCallback;
+  // Firebase
+  fbConfig.api_key      = API_KEY;
+  fbConfig.database_url = DATABASE_URL;
+  auth.user.email       = USER_EMAIL;
+  auth.user.password    = USER_PASSWORD;
+  fbConfig.token_status_callback = tokenStatusCallback;
 
-  Firebase.begin(&config, &auth);
+  Firebase.begin(&fbConfig, &auth);
   Firebase.reconnectWiFi(true);
 
-  // Aguardar autenticação
   Serial.print("[Firebase] A autenticar");
-  while (!Firebase.ready()) {
+  unsigned long fbStart = millis();
+  while (!Firebase.ready() && millis() - fbStart < 15000) {
     Serial.print(".");
     delay(300);
   }
-  Serial.println("\n[Firebase] Pronto.");
-  firebaseReady = true;
+  Serial.println();
+  firebaseReady = Firebase.ready();
+  Serial.printf("[Firebase] %s\n", firebaseReady ? "Pronto." : "Sem autenticação.");
 }
 
 // ======================== LOOP ========================
 void loop() {
-  if (!firebaseReady) return;
+  if (!firebaseReady) {
+    delay(500);
+    return;
+  }
 
   unsigned long now = millis();
-  if (now - lastCapture >= CAPTURE_INTERVAL) {
+  if (now - lastCapture >= CAPTURE_INTERVAL || lastCapture == 0) {
     lastCapture = now;
     captureAndUpload();
   }
-
   delay(100);
 }
 
 // ======================== FUNÇÕES ========================
-
 void initCamera() {
   camera_config_t cconfig;
   cconfig.ledc_channel = LEDC_CHANNEL_0;
@@ -151,31 +159,29 @@ void initCamera() {
   cconfig.xclk_freq_hz = 20000000;
   cconfig.pixel_format = PIXFORMAT_JPEG;
 
-  // Resolução e qualidade
   if (psramFound()) {
-    cconfig.frame_size   = FRAMESIZE_UXGA;  // 1600x1200
+    cconfig.frame_size   = FRAMESIZE_UXGA;   // 1600x1200
     cconfig.jpeg_quality = 12;
     cconfig.fb_count     = 2;
   } else {
-    cconfig.frame_size   = FRAMESIZE_SVGA;  // 800x600
+    cconfig.frame_size   = FRAMESIZE_SVGA;   // 800x600
     cconfig.jpeg_quality = 15;
     cconfig.fb_count     = 1;
   }
 
   esp_err_t err = esp_camera_init(&cconfig);
   if (err != ESP_OK) {
-    Serial.printf("[Câmara] Erro ao inicializar: 0x%x\n", err);
+    Serial.printf("[Câmara] Erro init: 0x%x\n", err);
     ESP.restart();
   }
 
-  // Ajustes de imagem para vista aérea
   sensor_t *s = esp_camera_sensor_get();
   s->set_brightness(s, 1);
   s->set_contrast(s, 1);
-  s->set_vflip(s, 1);      // Ajustar se câmara montada invertida
+  s->set_vflip(s, 1);       // Ajustar conforme montagem
   s->set_hmirror(s, 0);
 
-  Serial.println("[Câmara] Inicializada com sucesso.");
+  Serial.println("[Câmara] Inicializada.");
 }
 
 void connectWiFi() {
@@ -189,7 +195,7 @@ void connectWiFi() {
     attempts++;
   }
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("\n[WiFi] Falha na ligação. A reiniciar...");
+    Serial.println("\n[WiFi] Falha. A reiniciar...");
     ESP.restart();
   }
   Serial.printf("\n[WiFi] Ligado. IP: %s\n", WiFi.localIP().toString().c_str());
@@ -215,14 +221,13 @@ void captureAndUpload() {
   String timestamp = getTimestamp();
   String path = String("images/") + ROOM_ID + "/" + timestamp + ".jpg";
 
-  Serial.printf("[Upload] A enviar %s (%d bytes)...\n", path.c_str(), fb->len);
+  Serial.printf("[Upload] A enviar %s (%u bytes)...\n", path.c_str(), (unsigned)fb->len);
 
   if (Firebase.Storage.upload(
         &fbdo, STORAGE_BUCKET, fb->buf, fb->len,
         path.c_str(), "image/jpeg")) {
     Serial.println("[Upload] Sucesso.");
 
-    // Registar metadados no Realtime Database
     String dbPath = String("rooms/") + ROOM_ID + "/latest_image";
     Firebase.RTDB.setString(&fbdo, dbPath.c_str(), path.c_str());
 

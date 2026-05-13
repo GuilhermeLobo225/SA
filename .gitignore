@@ -53,12 +53,18 @@ captures/
 *.iml
 
 # ============================================================
-# Arduino / firmware (firmware/)
+# PlatformIO / firmware (sensor/ e vision/)
 # ============================================================
+.pio/
+.pioenvs/
+.piolibdeps/
+.clang_complete
+.gcc-flags.json
 *.ino.cpp.o
 *.elf
 *.hex
 *.bin
+*.map
 build/
 
 # ============================================================

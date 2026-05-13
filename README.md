@@ -16,12 +16,12 @@ O sistema é composto por três camadas: sensorização (dois nós ESP32), proce
 
 ```
 Camada de Sensorização
-┌──────────────┐    ┌──────────────────────────────────┐
-│  Nó de Visão │    │         Nó Ambiental             │
-│  ESP32-CAM   │    │  ESP32 DevKit V1                 │
-│  OV2640 2MP  │    │  DHT11 │ MQ-135 │ LDR │ KY-038  │
-└──────┬───────┘    └───────────┬──────────────────────┘
-       │  Wi-Fi / MQTT         │  Wi-Fi
+┌──────────────┐    ┌──────────────────────────────────────┐
+│  Nó de Visão │    │            Nó Ambiental              │
+│  ESP32-CAM   │    │  ESP32-S3 DevKitC-1                  │
+│  OV2640 2MP  │    │  DHT11 │ MQ-135 │ LM393 │ MSM261S4030│
+└──────┬───────┘    └───────────┬──────────────────────────┘
+       │  Wi-Fi                │  Wi-Fi
        ▼                       ▼
 ┌─────────────────────────────────────┐
 │     Camada de Processamento         │
@@ -49,12 +49,12 @@ Camada de Sensorização
 - Montagem no teto com orientação aérea
 - Eliminação automática das imagens após inferência (privacy by design)
 
-### Nó Ambiental (ESP32 DevKit V1)
+### Nó Ambiental (ESP32-S3 DevKitC-1)
 
 - **DHT11:** temperatura (±2°C) e humidade relativa (±5%)
 - **MQ-135:** qualidade do ar (índice relativo, sensor SnO2)
-- **LDR:** iluminância (classificação qualitativa por limiares)
-- **KY-038:** nível sonoro (intensidade relativa)
+- **LM393 (módulo fotodíodo):** iluminância — saída analógica (intensidade) + saída digital (limiar)
+- **MSM261S4030H0:** microfone MEMS digital I2S de 24 bits para nível de ruído (RMS / dB relativo)
 - **LED RGB:** feedback visual de conforto (verde/amarelo/vermelho)
 - Leitura a cada 30 segundos, envio para Firebase Realtime Database
 
@@ -87,13 +87,30 @@ Camada de Sensorização
 
 | Componente | Qtd. | Função |
 |---|---|---|
-| ESP32 DevKit V1 | 1 | Microcontrolador |
+| ESP32-S3 DevKitC-1 | 1 | Microcontrolador |
 | DHT11 | 1 | Temperatura e humidade |
 | MQ-135 | 1 | Qualidade do ar |
-| LDR + Resistência 10kΩ | 1 | Iluminância |
-| KY-038 | 1 | Nível sonoro |
+| Módulo fotodíodo c/ LM393 | 1 | Iluminância (analógico + digital) |
+| MSM261S4030H0 (microfone I2S MEMS) | 1 | Nível sonoro |
 | LED RGB (cátodo comum) + 3× 220Ω | 1 | Feedback visual |
 | Breadboard + jumpers | — | Prototipagem |
+
+#### Pinagem (ESP32-S3 DevKitC-1)
+
+| Sinal | GPIO | Notas |
+|---|---|---|
+| DHT11 DATA | 4 | 1-wire digital, pull-up 10kΩ |
+| MQ-135 AOUT | 5 | ADC1_CH4 (analógico) |
+| LM393 AOUT (luz) | 6 | ADC1_CH5 (analógico) |
+| LM393 DOUT (luz) | 7 | digital — limiar do potenciómetro |
+| MSM261 BCLK | 14 | I2S bit clock |
+| MSM261 WS / LRCL | 15 | I2S word select |
+| MSM261 DOUT / SD | 13 | I2S data in |
+| LED RGB — R | 16 | PWM (LEDC ch 0) |
+| LED RGB — G | 17 | PWM (LEDC ch 1) |
+| LED RGB — B | 18 | PWM (LEDC ch 2) |
+
+> O microfone MSM261S4030H0 alimenta-se a 3.3 V e tem o pino **SEL ligado a GND** (canal esquerdo).
 
 ---
 
@@ -103,9 +120,9 @@ Camada de Sensorização
 |---|---|---|---|
 | Temperatura | DHT11 | 20–26 °C | ASHRAE 55 |
 | Humidade | DHT11 | 30–70% | — |
-| Qualidade do ar | MQ-135 | < 400 (analógico) | Calibração empírica |
-| Iluminância | LDR | ≥ 500 lux equiv. | EN 12464-1 |
-| Ruído | KY-038 | < 35 dB(A) equiv. | OMS |
+| Qualidade do ar | MQ-135 | < 800 (ADC bruto 12-bit) | Calibração empírica |
+| Iluminância | LM393 fotodíodo | < 2500 (ADC) ou DO=0 | EN 12464-1 |
+| Ruído | MSM261S4030H0 (I2S) | < 55 dB relativo | OMS |
 
 ---
 
@@ -113,11 +130,19 @@ Camada de Sensorização
 
 ```
 SA/
-├── firmware/                          # Código Arduino (ESP32)
-│   ├── vision_node/                   #   Nó de visão
-│   │   └── vision_node.ino            #     ESP32-CAM: captura + upload
-│   └── environmental_node/            #   Nó ambiental
-│       └── environmental_node.ino     #     Sensores + LED RGB + Firebase
+├── sensor/                            # Nó Ambiental (PlatformIO, ESP32-S3)
+│   └── Sensor_NODE/
+│       ├── platformio.ini             #   Configuração do projeto + libs
+│       ├── src/
+│       │   └── main.cpp               #   DHT11 + MQ-135 + LM393 + I2S + LED RGB
+│       ├── include/  lib/  test/
+│
+├── vision/                            # Nó de Visão (PlatformIO, ESP32-CAM)
+│   └── Vision_NODE/
+│       ├── platformio.ini
+│       ├── src/
+│       │   └── main.cpp               #   OV2640: captura + upload Storage
+│       ├── include/  lib/  test/
 │
 ├── processing/                        # Pipeline Python
 │   ├── detector.py                    #   YOLOv8 + DeepSORT
@@ -126,10 +151,8 @@ SA/
 │   ├── config.py                      #   Configurações
 │   └── requirements.txt               #   Dependências Python
 │
-├── dashboard/                         # Interface web
-│   ├── index.html                     #   Página principal
-│   ├── style.css                      #   Estilos
-│   └── app.js                         #   Lógica de atualização
+├── website/                           # Dashboard web
+├── app/                               # App móvel
 │
 ├── docs/                              # Documentação
 │   ├── SA2026_paper_6906.pdf          #   Artigo (LNCS)
@@ -148,7 +171,7 @@ SA/
 
 ### Pré-requisitos
 
-* **Arduino IDE** ou **PlatformIO** instalado.
+* **PlatformIO** (VSCode + extensão PlatformIO IDE).
 * **Python 3.11+** com pip.
 * **Conta Firebase** com Realtime Database e Storage ativados.
 
@@ -165,8 +188,14 @@ SA/
    - Colocar `firebase_credentials.json` em `processing/`
 
 3. **Configurar firmware:**
-   - Editar `WIFI_SSID`, `WIFI_PASSWORD` e credenciais Firebase em ambos os `.ino`
-   - Upload para cada ESP32
+   - Editar `WIFI_SSID`, `WIFI_PASSWORD` e credenciais Firebase em `sensor/Sensor_NODE/src/main.cpp` e em `vision/Vision_NODE/src/main.cpp`.
+   - Compilar e fazer upload com PlatformIO:
+     ```bash
+     # Nó ambiental (ESP32-S3)
+     pio run -d sensor/Sensor_NODE -t upload
+     # Nó de visão (ESP32-CAM)
+     pio run -d vision/Vision_NODE -t upload
+     ```
 
 4. **Instalar dependências Python:**
    ```bash
