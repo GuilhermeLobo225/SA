@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Bibliotecas UMinho</string>
+
+    <!-- Ecrãs -->
+    <string name="title_bibliotecas">Bibliotecas UMinho</string>
+    <string name="title_catalogo">Catálogo bibliográfico</string>
+    <string name="title_detalhe">Detalhes</string>
+
+    <!-- MainActivity -->
+    <string name="subtitle_main">Serviço de Documentação e Bibliotecas</string>
+    <string name="ver_catalogo">Pesquisar no catálogo</string>
+    <string name="a_carregar">A carregar…</string>
+
+    <!-- Detalhe -->
+    <string name="ocupacao_titulo">Ocupação em tempo real</string>
+    <string name="planta_titulo">Disposição da sala — Piso 1</string>
+    <string name="sensores_titulo">Conforto ambiental</string>
+    <string name="info_titulo">Informações</string>
+    <string name="sem_sensorizacao_titulo">Sem sensorização disponível</string>
+    <string name="sem_sensorizacao_msg">A versão atual do sistema-piloto está instalada apenas na Biblioteca Geral. Esta biblioteca está prevista para uma fase futura de implantação.</string>
+    <string name="modo_demo">Modo demo · API offline</string>
+    <string name="em_direto">Em direto · API local</string>
+    <string name="ultima_leitura">Última leitura: %1$s</string>
+    <string name="lugares_ocupados">%1$d de %2$d lugares ocupados</string>
+
+    <!-- Etiquetas de campos -->
+    <string name="label_sigla">Sigla</string>
+    <string name="label_campus">Campus</string>
+    <string name="label_morada">Morada</string>
+    <string name="label_telefone">Telefone</string>
+    <string name="label_email">E-mail</string>
+    <string name="label_lugares">Lugares totais</string>
+    <string name="label_horario_letivo">Horário letivo</string>
+    <string name="label_horario_ferias">Horário de férias</string>
+
+    <!-- Sensores -->
+    <string name="sensor_temperatura">Temperatura</string>
+    <string name="sensor_humidade">Humidade</string>
+    <string name="sensor_qualidade_ar">Qualidade do ar</string>
+    <string name="sensor_iluminacao">Iluminância</string>
+    <string name="sensor_ruido">Ruído</string>
+
+    <!-- Estados de ocupação -->
+    <string name="estado_vazio">Vazio</string>
+    <string name="estado_disponivel">Disponível</string>
+    <string name="estado_parcial">Parcialmente ocupado</string>
+    <string name="estado_quase_cheio">Quase cheio</string>
+    <string name="estado_cheio">Cheio</string>
+    <string name="estado_desconhecido">—</string>
+
+    <!-- Badges -->
+    <string name="badge_monitorizada">Sensorização ativa</string>
+    <string name="badge_nao_monitorizada">Sem sensorização</string>
+
+    <!-- Catálogo -->
+    <string name="pesquisar_hint">Pesquisar por título, autor ou cota…</string>
+    <string name="todas_areas">Todas as áreas</string>
+    <string name="sem_resultados">Sem resultados para os critérios indicados.</string>
+    <string name="count_template">%1$d de %2$d registo(s)</string>
+    <string name="exemplares_template">%1$d de %2$d disponíveis</string>
+
+    <!-- Geofencing (PL8) -->
+    <string name="geofence_channel_name">Alertas de biblioteca</string>
+    <string name="geofence_channel_desc">Notificações quando entras ou sais da zona de uma biblioteca monitorizada.</string>
+    <string name="geofence_enter_title">A entrar na %1$s</string>
+    <string name="geofence_enter_msg">Ocupação atual: %1$d/%2$d (%3$d%%). Toca para ver detalhes.</string>
+    <string name="geofence_exit_title">A sair da %1$s</string>
+    <string name="geofence_exit_msg">Boa sessão de estudo!</string>
+    <string name="geofence_registar">Registar geofence da BG</string>
+    <string name="geofence_remover">Remover geofence</string>
+    <string name="geofence_registada">Geofence da BG registada com sucesso</string>
+    <string name="geofence_removida">Geofence removida</string>
+    <string name="geofence_erro">Erro a registar geofence: %1$s</string>
+
+    <!-- Permissões -->
+    <string name="perm_localizacao_titulo">Permissão de localização</string>
+    <string name="perm_localizacao_msg">Para receberes alertas quando entras numa biblioteca, a app precisa de acesso à localização em segundo plano. Nas definições, escolhe \"Permitir sempre\".</string>
+    <string name="perm_abrir_definicoes">Abrir definições</string>
+    <string name="cancelar">Cancelar</string>
+
+    <!-- Erros -->
+    <string name="erro_carregar">Erro ao carregar dados</string>
+    <string name="voltar">Voltar</string>
+</resources>

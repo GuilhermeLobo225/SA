@@ -1,0 +1,81 @@
+id,titulo,autor,ano,area,biblioteca_id,cota,exemplares_total,exemplares_disponiveis
+B0001,Os Lusíadas,Luís de Camões,1572,Literatura,bg,LIT/CAM/01,4,2
+B0002,Os Maias,Eça de Queirós,1888,Literatura,bg,LIT/QUE/02,5,3
+B0003,Mensagem,Fernando Pessoa,1934,Literatura,bg,LIT/PES/01,3,1
+B0004,Livro do Desassossego,Bernardo Soares,1982,Literatura,bg,LIT/PES/02,3,0
+B0005,Ensaio sobre a Cegueira,José Saramago,1995,Literatura,bg,LIT/SAR/01,4,2
+B0006,Memorial do Convento,José Saramago,1982,Literatura,bg,LIT/SAR/02,3,1
+B0007,Amor de Perdição,Camilo Castelo Branco,1862,Literatura,bg,LIT/CAS/01,2,2
+B0008,Sermões,Padre António Vieira,1679,Literatura,bg,LIT/VIE/01,2,1
+B0009,A Selva,Ferreira de Castro,1930,Literatura,bg,LIT/CAS/02,2,1
+B0010,Levantado do Chão,José Saramago,1980,Literatura,bg,LIT/SAR/03,2,2
+B0011,Artificial Intelligence: A Modern Approach,Stuart Russell e Peter Norvig,2020,Computação,bg,CS/RUS/01,6,1
+B0012,Reinforcement Learning: An Introduction,Richard Sutton e Andrew Barto,2018,Computação,bg,CS/SUT/01,4,0
+B0013,Pattern Recognition and Machine Learning,Christopher Bishop,2006,Computação,bg,CS/BIS/01,5,2
+B0014,Deep Learning,Ian Goodfellow et al.,2016,Computação,bg,CS/GOO/01,4,1
+B0015,The Elements of Statistical Learning,Trevor Hastie et al.,2009,Computação,bg,EST/HAS/01,3,1
+B0016,Introduction to Algorithms,Thomas H. Cormen et al.,2009,Computação,bg,CS/COR/01,5,2
+B0017,Clean Code,Robert C. Martin,2008,Computação,bg,CS/MAR/01,4,3
+B0018,The Pragmatic Programmer,David Thomas e Andrew Hunt,2019,Computação,bg,CS/THO/01,3,1
+B0019,Computer Networks,Andrew S. Tanenbaum,2010,Computação,az,CS/TAN/01,3,2
+B0020,Operating System Concepts,Abraham Silberschatz et al.,2018,Computação,az,CS/SIL/01,4,2
+B0021,Database System Concepts,Abraham Silberschatz et al.,2019,Computação,az,CS/SIL/02,3,1
+B0022,Compilers: Principles Techniques and Tools,Alfred V. Aho et al.,2006,Computação,az,CS/AHO/01,3,0
+B0023,Structure and Interpretation of Computer Programs,Harold Abelson e Gerald Jay Sussman,1996,Computação,bg,CS/ABE/01,2,1
+B0024,Probabilistic Graphical Models,Daphne Koller e Nir Friedman,2009,Computação,bg,CS/KOL/01,2,1
+B0025,Speech and Language Processing,Daniel Jurafsky e James H. Martin,2023,Computação,bg,CS/JUR/01,3,2
+B0026,Calculus,James Stewart,2015,Matemática,bg,MAT/STE/01,6,3
+B0027,Linear Algebra Done Right,Sheldon Axler,2015,Matemática,bg,MAT/AXL/01,4,2
+B0028,Introduction to Probability,Dimitri P. Bertsekas e John N. Tsitsiklis,2008,Matemática,bg,MAT/BER/01,3,1
+B0029,Convex Optimization,Stephen Boyd e Lieven Vandenberghe,2004,Matemática,bg,MAT/BOY/01,2,0
+B0030,All of Statistics,Larry Wasserman,2004,Estatística,bg,EST/WAS/01,3,2
+B0031,Bayesian Data Analysis,Andrew Gelman et al.,2013,Estatística,bg,EST/GEL/01,2,1
+B0032,Princípios de Física,David Halliday et al.,2018,Física,az,FIS/HAL/01,5,3
+B0033,Mecânica Quântica,Cohen-Tannoudji et al.,2019,Física,az,FIS/COH/01,2,1
+B0034,Mecânica dos Sólidos,Stephen P. Timoshenko,1976,Engenharia,az,ENG/TIM/01,3,2
+B0035,Mecânica dos Fluidos,Frank M. White,2010,Engenharia,az,ENG/WHI/01,4,2
+B0036,Electromagnetismo,John D. Jackson,1999,Engenharia,az,ENG/JAC/01,2,1
+B0037,Sistemas de Controlo,Katsuhiko Ogata,2010,Engenharia,az,ENG/OGA/01,3,1
+B0038,Princípios de Termodinâmica,Yunus A. Çengel e Michael A. Boles,2014,Engenharia,az,ENG/CEN/01,3,2
+B0039,Digital Design,M. Morris Mano e Michael D. Ciletti,2017,Engenharia,az,ENG/MAN/01,3,1
+B0040,Microelectronic Circuits,Adel S. Sedra e Kenneth C. Smith,2014,Engenharia,az,ENG/SED/01,3,2
+B0041,Resistência dos Materiais,Russell C. Hibbeler,2017,Engenharia,az,ENG/HIB/01,4,3
+B0042,Direito Civil - Parte Geral,Carlos Alberto da Mota Pinto,2005,Direito,dir,DIR/MOT/01,4,2
+B0043,Constituição da República Portuguesa Anotada,Gomes Canotilho e Vital Moreira,2014,Direito,dir,DIR/CAN/01,3,1
+B0044,Manual de Direito Administrativo,Diogo Freitas do Amaral,2016,Direito,dir,DIR/AMA/01,3,2
+B0045,Direito Penal - Parte Geral,Jorge de Figueiredo Dias,2019,Direito,dir,DIR/DIA/01,2,1
+B0046,Direito das Obrigações,António Menezes Cordeiro,2018,Direito,dir,DIR/COR/01,2,1
+B0047,Lições de Direito Comercial,António Pereira de Almeida,2020,Direito,dir,DIR/ALM/01,2,2
+B0048,Tratado de Direito Internacional,Jorge Miranda,2015,Direito,dir,DIR/MIR/01,2,0
+B0049,Direito do Trabalho,Pedro Romano Martinez,2021,Direito,dir,DIR/MAR/01,3,1
+B0050,Anatomia Humana,Henry Gray,2020,Medicina,pm,MED/GRA/01,4,2
+B0051,Fisiologia Médica,Arthur C. Guyton e John E. Hall,2017,Medicina,pm,MED/GUY/01,3,1
+B0052,Bioquímica,Donald Voet e Judith G. Voet,2017,Medicina,pm,MED/VOE/01,3,2
+B0053,Robbins Patologia Básica,Vinay Kumar et al.,2018,Medicina,pm,MED/KUM/01,3,1
+B0054,Harrison Medicina Interna,Dennis L. Kasper et al.,2018,Medicina,pm,MED/KAS/01,2,0
+B0055,Farmacologia Básica e Clínica,Bertram G. Katzung,2018,Medicina,pm,MED/KAT/01,2,1
+B0056,Espaço Tempo e Arquitetura,Sigfried Giedion,1941,Arquitetura,np,ARQ/GIE/01,2,1
+B0057,A Cidade na História,Lewis Mumford,1961,Arquitetura,np,ARQ/MUM/01,2,1
+B0058,Os Tempos de uma Cidade,Nuno Portas,2003,Arquitetura,np,ARQ/POR/01,3,2
+B0059,Aprendendo com Las Vegas,Robert Venturi et al.,1972,Arquitetura,np,ARQ/VEN/01,2,1
+B0060,A Linguagem da Arquitetura Moderna,Bruno Zevi,1973,Arquitetura,np,ARQ/ZEV/01,2,2
+B0061,A Arquitetura da Cidade,Aldo Rossi,1966,Arquitetura,np,ARQ/ROS/01,2,1
+B0062,Hist. da Filosofia Ocidental,Bertrand Russell,1946,Filosofia,bg,FIL/RUS/01,3,2
+B0063,Crítica da Razão Pura,Immanuel Kant,1781,Filosofia,bg,FIL/KAN/01,2,1
+B0064,Ética a Nicómaco,Aristóteles,-340,Filosofia,bg,FIL/ARI/01,2,1
+B0065,Discurso do Método,René Descartes,1637,Filosofia,bg,FIL/DES/01,3,2
+B0066,Assim Falou Zaratustra,Friedrich Nietzsche,1885,Filosofia,bg,FIL/NIE/01,2,1
+B0067,O Mundo como Vontade e Representação,Arthur Schopenhauer,1819,Filosofia,bg,FIL/SCH/01,2,2
+B0068,História de Portugal,José Mattoso (coord.),1993,História,bg,HIS/MAT/01,4,2
+B0069,Os Descobrimentos Portugueses,Damião Peres,1943,História,bg,HIS/PER/01,2,1
+B0070,Peregrinação,Fernão Mendes Pinto,1614,Literatura,fmp,LIT/PIN/01,3,2
+B0071,Cultura e Sociedade no Oriente,VV.AA.,2010,Estudos Orientais,fmp,ORI/VAR/01,2,1
+B0072,Design para o Mundo Real,Victor Papanek,1971,Design,cou,DES/PAP/01,2,1
+B0073,A Forma Segue a Emoção,VV.AA.,2018,Design,cou,DES/VAR/01,2,2
+B0074,Princípios Universais do Design,William Lidwell et al.,2010,Design,cou,DES/LID/01,3,2
+B0075,Fundamentos da Tipografia,Robert Bringhurst,2018,Design,cou,DES/BRI/01,2,1
+B0076,Visualização de Dados,Edward R. Tufte,2001,Design,bg,DES/TUF/01,3,1
+B0077,Grammar of Graphics,Leland Wilkinson,2005,Estatística,bg,EST/WIL/01,2,2
+B0078,Information Visualization,Colin Ware,2020,Design,bg,DES/WAR/01,2,1
+B0079,Storytelling with Data,Cole Nussbaumer Knaflic,2015,Design,bg,DES/KNA/01,3,2
+B0080,Interactive Data Visualization for the Web,Scott Murray,2017,Computação,bg,CS/MUR/01,2,1

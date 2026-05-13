@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Faixa para bibliotecas com sensorização: gradiente vermelho → verde. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:startColor="@color/uminho_red"
+        android:centerColor="@color/uminho_red"
+        android:endColor="@color/status_low"
+        android:angle="0"
+        android:type="linear" />
+    <corners android:topLeftRadius="6dp" android:topRightRadius="6dp" />
+</shape>

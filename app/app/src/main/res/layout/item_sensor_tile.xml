@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Mosaico de um sensor ambiental. Inflado em runtime pela Activity de detalhe,
+  uma vez por cada sensor (temperatura, humidade, CO2, lux, ruído).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:background="@drawable/sensor_tile_bg"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <ImageView
+        android:id="@+id/icone"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_thermometer" />
+
+    <TextView
+        android:id="@+id/label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:letterSpacing="0.08"
+        android:textAllCaps="true"
+        android:textColor="@color/text_muted"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        tools:text="Temperatura" />
+
+    <TextView
+        android:id="@+id/valor"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:fontFamily="monospace"
+        android:textColor="@color/text_strong"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        tools:text="22.4 °C" />
+</LinearLayout>

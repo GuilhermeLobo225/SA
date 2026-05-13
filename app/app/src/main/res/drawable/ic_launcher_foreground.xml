@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Livro estilizado centrado -->
+    <group android:translateX="34" android:translateY="34">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M5,4h30c1.1,0 2,0.9 2,2v28c0,1.1 -0.9,2 -2,2H5c-1.1,0 -2,-0.9 -2,-2V6c0,-1.1 0.9,-2 2,-2zM5,6v28h30V6H5zM10,11h20v2h-20zM10,16h20v2h-20zM10,21h14v2h-14z" />
+    </group>
+</vector>

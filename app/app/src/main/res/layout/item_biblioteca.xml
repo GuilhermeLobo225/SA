@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cartão de uma biblioteca na lista. Layout vertical: faixa colorida no topo + corpo -->
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="16dp"
+    android:layout_marginVertical="8dp"
+    android:background="@drawable/card_background"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground">
+
+    <!-- Faixa decorativa no topo do cartão. -->
+    <View
+        android:id="@+id/top_band"
+        android:layout_width="0dp"
+        android:layout_height="6dp"
+        android:background="@drawable/top_band_red"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Sigla (mono, pequena, cinzenta) -->
+    <TextView
+        android:id="@+id/sigla"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:layout_marginHorizontal="18dp"
+        android:fontFamily="monospace"
+        android:textSize="11sp"
+        android:letterSpacing="0.08"
+        android:textColor="@color/text_muted"
+        tools:text="BGUM · CAMPUS GUALTAR"
+        app:layout_constraintTop_toBottomOf="@id/top_band"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Nome da biblioteca -->
+    <TextView
+        android:id="@+id/nome"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:layout_marginHorizontal="18dp"
+        android:textColor="@color/text_strong"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        tools:text="Biblioteca Geral da UMinho"
+        app:layout_constraintTop_toBottomOf="@id/sigla"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Cidade -->
+    <LinearLayout
+        android:id="@+id/cidade_row"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:layout_marginStart="18dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        app:layout_constraintTop_toBottomOf="@id/nome"
+        app:layout_constraintStart_toStartOf="parent">
+        <ImageView
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:src="@drawable/ic_location"
+            android:contentDescription="@string/label_campus" />
+        <TextView
+            android:id="@+id/cidade"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:textSize="12sp"
+            android:textColor="@color/text_muted"
+            tools:text="Braga" />
+    </LinearLayout>
+
+    <!-- Badge (sensorização ativa / sem sensorização) -->
+    <TextView
+        android:id="@+id/badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:layout_marginStart="18dp"
+        android:background="@drawable/badge_monitored"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="3dp"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:textAllCaps="true"
+        android:letterSpacing="0.04"
+        android:textColor="@color/status_free"
+        tools:text="@string/badge_monitorizada"
+        app:layout_constraintTop_toBottomOf="@id/cidade_row"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Descrição -->
+    <TextView
+        android:id="@+id/descricao"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginHorizontal="18dp"
+        android:textSize="14sp"
+        android:textColor="@color/text_body"
+        tools:text="Biblioteca principal do campus de Gualtar. Reúne fundo bibliográfico transversal a todas as áreas do conhecimento."
+        app:layout_constraintTop_toBottomOf="@id/badge"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Linha tracejada -->
+    <View
+        android:id="@+id/separador"
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginHorizontal="18dp"
+        android:background="@color/border_soft"
+        app:layout_constraintTop_toBottomOf="@id/descricao"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Meta: Lugares + Horário -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginHorizontal="18dp"
+        android:layout_marginBottom="16dp"
+        android:orientation="horizontal"
+        app:layout_constraintTop_toBottomOf="@id/separador"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/label_lugares"
+                android:textAllCaps="true"
+                android:letterSpacing="0.08"
+                android:textSize="10sp"
+                android:textColor="@color/text_muted" />
+            <TextView
+                android:id="@+id/lugares"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_strong"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                tools:text="280" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.4"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/label_horario_letivo"
+                android:textAllCaps="true"
+                android:letterSpacing="0.08"
+                android:textSize="10sp"
+                android:textColor="@color/text_muted" />
+            <TextView
+                android:id="@+id/horario"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_strong"
+                android:textSize="11sp"
+                tools:text="2ª a 6ª: 09:00–22:00" />
+        </LinearLayout>
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

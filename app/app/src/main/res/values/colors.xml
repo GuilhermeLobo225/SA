@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paleta UMinho — alinhada com o site web do projeto -->
+    <color name="uminho_red">#A8001F</color>
+    <color name="uminho_red_dark">#820018</color>
+    <color name="uminho_red_soft">#F4E6E8</color>
+    <color name="uminho_blue">#005A9C</color>
+
+    <color name="bg_page">#F7F5F1</color>
+    <color name="bg_surface">#FFFFFF</color>
+    <color name="bg_subtle">#F1EDE6</color>
+    <color name="border_soft">#E4DDD1</color>
+    <color name="border_strong">#C8BDA9</color>
+
+    <color name="text_strong">#1F1D1A</color>
+    <color name="text_body">#3D3A35</color>
+    <color name="text_muted">#75706A</color>
+    <color name="text_on_red">#FFFFFF</color>
+
+    <!-- Cores semânticas para ocupação -->
+    <color name="status_free">#2F8A3E</color>
+    <color name="status_low">#4F9E5D</color>
+    <color name="status_mid">#D6A216</color>
+    <color name="status_high">#C44D2F</color>
+    <color name="status_full">#9A1818</color>
+    <color name="status_unknown">#A8A39A</color>
+
+    <!-- Cor de fundo do ícone do launcher -->
+    <color name="ic_launcher_background">#A8001F</color>
+</resources>

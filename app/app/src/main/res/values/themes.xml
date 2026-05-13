@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Tema base da aplicação. Usamos Material3 Light com a paleta UMinho. -->
+    <style name="Theme.SA" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/uminho_red</item>
+        <item name="colorPrimaryVariant">@color/uminho_red_dark</item>
+        <item name="colorOnPrimary">@color/text_on_red</item>
+
+        <item name="colorSecondary">@color/uminho_blue</item>
+        <item name="colorOnSecondary">@color/text_on_red</item>
+
+        <item name="android:colorBackground">@color/bg_page</item>
+        <item name="android:textColor">@color/text_body</item>
+        <item name="android:textColorPrimary">@color/text_strong</item>
+        <item name="android:textColorSecondary">@color/text_muted</item>
+
+        <item name="android:statusBarColor">@color/uminho_red_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Estilo dos botões -->
+        <item name="materialButtonStyle">@style/Widget.SA.Button</item>
+    </style>
+
+    <!-- Botão primário com a paleta UMinho -->
+    <style name="Widget.SA.Button" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/uminho_red</item>
+        <item name="android:textColor">@color/text_on_red</item>
+        <item name="cornerRadius">4dp</item>
+    </style>
+
+    <!-- "Eyebrow" — texto pequeno em maiúsculas, vermelho -->
+    <style name="TextAppearance.SA.Eyebrow" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.12</item>
+        <item name="android:textColor">@color/uminho_red</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">11sp</item>
+    </style>
+
+    <!-- Título de secção -->
+    <style name="TextAppearance.SA.SectionTitle" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textColor">@color/text_strong</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- TopAppBar com cor de marca -->
+    <style name="Widget.SA.AppBar" parent="Widget.Material3.Toolbar">
+        <item name="background">@color/uminho_red</item>
+        <item name="titleTextColor">@color/text_on_red</item>
+        <item name="subtitleTextColor">@color/uminho_red_soft</item>
+    </style>
+</resources>
