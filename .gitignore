@@ -16,6 +16,8 @@ firebase_credentials.json
 serviceAccountKey.json
 google-services.json
 *-firebase-adminsdk-*.json
+processing/secrets/
+*-credentials.json
 .env
 .env.local
 

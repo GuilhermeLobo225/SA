@@ -104,13 +104,24 @@ class PlantaView @JvmOverloads constructor(
             y += gridStep
         }
 
-        // 3. Cada zona
+        // 3. Distribuir as pessoas pelas mesas monitorizadas (preenchimento
+        //    sequencial — mesma heurística que o detector.py usa em _classify)
+        val totalCount = roomData?.count ?: 0
+        var remaining  = totalCount
+        val localCounts = mutableMapOf<String, Int>()
+        for (zona in l.zonas.filter { it.monitorizada }) {
+            val take = remaining.coerceAtMost(zona.lugares).coerceAtLeast(0)
+            localCounts[zona.id] = take
+            remaining -= take
+        }
+
+        // 4. Desenhar cada zona com a sua contagem local
         for (zona in l.zonas) {
-            drawZona(canvas, zona)
+            drawZona(canvas, zona, localCounts[zona.id] ?: 0)
         }
     }
 
-    private fun drawZona(canvas: Canvas, z: Zona) {
+    private fun drawZona(canvas: Canvas, z: Zona, localCount: Int) {
         // Converte percentagens [0..100] em pixéis dentro do view
         val left   = (z.x / 100f) * width
         val top    = (z.y / 100f) * height
@@ -118,8 +129,8 @@ class PlantaView @JvmOverloads constructor(
         val bottom = ((z.y + z.h) / 100f) * height
         val r = RectF(left + dp(2f), top + dp(2f), right - dp(2f), bottom - dp(2f))
 
-        // Cor de fundo: monitorizada -> conforme ocupação; outras -> cinzento
-        val (fill, stroke) = corDaZona(z)
+        // Cor de fundo: monitorizada -> conforme ocupação local; outras -> cinzento
+        val (fill, stroke) = corDaZona(z, localCount)
         paintFill.color   = fill
         paintStroke.color = stroke
         if (z.monitorizada) paintStroke.strokeWidth = dp(2f) else paintStroke.strokeWidth = dp(1.5f)
@@ -137,10 +148,9 @@ class PlantaView @JvmOverloads constructor(
                         r.top + paintTextId.textSize + paintTextLabel.textSize + dp(4f),
                         paintTextLabel)
 
-        // Para a zona monitorizada (A), mostrar contagem ao vivo no canto inferior direito
+        // Para zonas monitorizadas mostrar contagem LOCAL (não global)
         if (z.monitorizada) {
-            val d = roomData
-            val texto = if (d != null) "${d.count}/${d.capacity}" else "—/${z.lugares}"
+            val texto = if (roomData != null) "$localCount/${z.lugares}" else "—/${z.lugares}"
             paintTextCount.color = ContextCompat.getColor(context, R.color.text_strong)
             val tw = paintTextCount.measureText(texto)
             canvas.drawText(texto, r.right - padding - tw, r.bottom - padding, paintTextCount)
@@ -156,20 +166,23 @@ class PlantaView @JvmOverloads constructor(
     /**
      * Devolve (cor de preenchimento, cor da borda) para a zona, em função de:
      *  - se é monitorizada (caso contrário: cinzento neutro)
-     *  - se há dados ao vivo (e qual a percentagem)
+     *  - se há dados ao vivo (contagem local da zona)
+     *
+     * Esquema simples de 3 tiers para mesas pequenas, alinhado com a legenda
+     * da UI ("Monitorizada · Ocupação média · Ocupação alta"):
+     *   0 pessoas       → vazio   (verde)
+     *   1..(cap-1)      → parcial (amarelo) — qualquer ocupação intermédia
+     *   cap (cheia)     → cheio   (vermelho)
      */
-    private fun corDaZona(z: Zona): Pair<Int, Int> {
+    private fun corDaZona(z: Zona, localCount: Int): Pair<Int, Int> {
         if (!z.monitorizada) {
             return Color.parseColor("#26A8A39A") to    // cinzento a 15%
                    ContextCompat.getColor(context, R.color.border_strong)
         }
-        val pct = roomData?.occupancyPct ?: 0f
         val fill = when {
-            pct >= 0.95f -> Color.parseColor("#529A1818") // muito ocupado: vermelho escuro a 32%
-            pct >= 0.75f -> Color.parseColor("#47C44D2F") // alto: laranja-vermelho a 28%
-            pct >= 0.40f -> Color.parseColor("#40D6A216") // médio: amarelo a 25%
-            pct >  0f    -> Color.parseColor("#404F9E5D") // baixo: verde a 25%
-            else         -> Color.parseColor("#262F8A3E") // vazio: verde a 15%
+            localCount <= 0            -> Color.parseColor("#262F8A3E") // vazio: verde a 15%
+            localCount >= z.lugares    -> Color.parseColor("#529A1818") // cheio: vermelho a 32%
+            else                       -> Color.parseColor("#40D6A216") // parcial: amarelo a 25%
         }
         val stroke = ContextCompat.getColor(context, R.color.uminho_red)
         return fill to stroke

@@ -31,21 +31,22 @@
 
 // ======================== CONFIGURAÇÃO ========================
 // Wi-Fi
-#define WIFI_SSID     "YOUR_WIFI_SSID"
-#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+#define WIFI_SSID      "luismpso"       
+#define WIFI_PASSWORD  "Luis2002"
 
 // Firebase
-#define API_KEY       "YOUR_FIREBASE_API_KEY"
-#define DATABASE_URL  "https://YOUR_PROJECT-default-rtdb.firebaseio.com"
+#define API_KEY       "AIzaSyDMz9JUWG8blDmMw7yqahRcDXvJ5o9uU2A"
+#define DATABASE_URL  "https://sensor-node-da140-default-rtdb.europe-west1.firebasedatabase.app/"
 // Conta de serviço criada no Firebase Authentication (Email/Password)
 #define USER_EMAIL    "esp32env@smartroom.local"
-#define USER_PASSWORD "YOUR_SERVICE_PASSWORD"
+#define USER_PASSWORD "admin123"
 
 // Identificador da sala
 #define ROOM_ID       "sala_b1_piso2"
 
 // Intervalo de leitura (ms)
-#define READ_INTERVAL 30000UL
+#define READ_INTERVAL          30000UL   // sensores ambientais
+#define OCCUPANCY_POLL_INTERVAL 5000UL   // leitura do status de ocupação (LED)
 
 // NTP
 #define NTP_SERVER   "pool.ntp.org"
@@ -58,6 +59,11 @@
 #define DHT_TYPE    DHT11
 
 // MQ-135 — ADC1_CH4
+// ⚠️ AO do MQ-135 vai até 5 V; ligar SEMPRE através de divisor de tensão:
+//    MQ-135 AO ── R1(10k) ──┬── GPIO 5
+//                           R2(10k) ── GND
+//   (V_GPIO = V_AO × 1/2 → 5 V máx no AO ≈ 2.5 V no GPIO; ADC máx ≈ 3102/4095)
+//   Limiares de gás (AIR_*) calibrados empiricamente após observar o Serial Monitor.
 #define MQ135_PIN   5
 
 // LM393 fotodíodo (módulo de luz)
@@ -111,10 +117,13 @@
 DHT dht(DHT_PIN, DHT_TYPE);
 
 FirebaseData   fbdo;
+FirebaseData   fbdoOccupancy;   // ligação dedicada à leitura de occupancy
 FirebaseAuth   auth;
 FirebaseConfig fbConfig;
 
-unsigned long lastRead   = 0;
+unsigned long lastRead       = 0;
+unsigned long lastOccupancy  = 0;
+String        lastStatus     = "";
 bool          firebaseReady = false;
 
 // ======================== I2S MICROFONE ========================
@@ -241,9 +250,39 @@ String classifyComfort(float temp, float hum, int air, const String& light, floa
 }
 
 void updateLEDFromComfort(const String& comfort) {
+  // (Lógica antiga — mantida por compatibilidade, não é chamada por defeito.)
   if (comfort == "bom")          setLED(0, 255, 0);     // Verde
   else if (comfort == "moderado") setLED(255, 180, 0);  // Amarelo/laranja
   else                            setLED(255, 0, 0);    // Vermelho
+}
+
+// Atualiza o LED RGB conforme o estado de ocupação vindo do Firebase:
+//   "livre"   → verde   (pelo menos uma mesa livre)
+//   "parcial" → amarelo (mesas todas ocupadas mas cadeiras livres)
+//   "cheio"   → vermelho (cadeiras todas ocupadas)
+void updateLEDFromOccupancy(const String& status) {
+  if (status == "livre")        setLED(0, 255, 0);
+  else if (status == "parcial") setLED(255, 180, 0);
+  else if (status == "cheio")   setLED(255, 0, 0);
+  else                          setLED(0, 0, 64);   // azul ténue = sem dados ainda
+}
+
+// Lê rooms/<ROOM_ID>/occupancy/status do Firebase e pinta o LED.
+// Chamada periodicamente no loop (a cada OCCUPANCY_POLL_INTERVAL).
+void pollOccupancyStatus() {
+  if (!firebaseReady || !Firebase.ready()) return;
+
+  String path = String("rooms/") + ROOM_ID + "/occupancy/status";
+  if (Firebase.RTDB.getString(&fbdoOccupancy, path.c_str())) {
+    String status = fbdoOccupancy.stringData();
+    if (status != lastStatus) {
+      Serial.printf("[Occupancy] Estado atualizado: '%s'\n", status.c_str());
+      lastStatus = status;
+      updateLEDFromOccupancy(status);
+    }
+  } else {
+    Serial.printf("[Occupancy] Sem leitura: %s\n", fbdoOccupancy.errorReason().c_str());
+  }
 }
 
 // ======================== LEITURA + ENVIO ========================
@@ -270,7 +309,8 @@ void readAndSend() {
   String comfort    = classifyComfort(temperature, humidity, airQuality, lightClass, noiseDb);
   String timestamp  = getTimestamp();
 
-  updateLEDFromComfort(comfort);
+  // NOTA: o LED já NÃO é controlado pelo conforto local.
+  // É controlado por pollOccupancyStatus() que lê rooms/.../occupancy/status do Firebase.
 
   // --- Log ---
   Serial.println("─────────────────────────────");
@@ -373,16 +413,25 @@ void setup() {
   firebaseReady = Firebase.ready();
   Serial.printf("[Firebase] %s\n", firebaseReady ? "Pronto." : "Sem autenticação (continua em modo local).");
 
-  setLED(0, 255, 0); // Verde = pronto
+  setLED(0, 0, 64); // Azul ténue = pronto, à espera do 1.º status de ocupação
   delay(500);
 }
 
 // ======================== LOOP ========================
 void loop() {
   unsigned long now = millis();
+
+  // Leituras dos sensores ambientais a cada READ_INTERVAL (30 s)
   if (now - lastRead >= READ_INTERVAL || lastRead == 0) {
     lastRead = now;
     readAndSend();
   }
+
+  // Atualização do LED (status de ocupação) a cada OCCUPANCY_POLL_INTERVAL (5 s)
+  if (now - lastOccupancy >= OCCUPANCY_POLL_INTERVAL || lastOccupancy == 0) {
+    lastOccupancy = now;
+    pollOccupancyStatus();
+  }
+
   delay(50);
 }

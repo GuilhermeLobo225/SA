@@ -60,17 +60,70 @@ Camada de Sensorização
 
 ### Processamento (Python)
 
-- **YOLOv8** para deteção de pessoas nas imagens
-- **DeepSORT** para rastreamento temporal e estabilidade das contagens
-- Classificação de ocupação: vazio, disponível, parcialmente ocupado, quase cheio, cheio
-- Correlação temporal entre dados visuais e ambientais
-- API REST (Flask) para exposição dos dados
+- **YOLOv11** (YOLOv8-API compatível) para deteção de pessoas nas imagens — usamos o `yolo11x.pt` (extra-large, máxima precisão)
+- **DeepSORT** para rastreamento temporal e estabilidade das contagens entre frames
+- A capacidade da sala vem da configuração (`ROOM_TABLES × CHAIRS_PER_TABLE`), não da deteção — o YOLO conta apenas pessoas; as cadeiras só aparecem como debug visual nos frames anotados (resolve o viés do COCO em cadeiras vazias e a oclusão por pessoas sentadas)
+- Classificação de ocupação em dois níveis:
+  - **3 estados** internos (`livre` / `parcial` / `cheio`) — consumidos pelo firmware do LED
+  - **5 estados** públicos (`vazio` / `disponivel` / `parcialmente_ocupado` / `quase_cheio` / `cheio`) — derivados na API a partir da percentagem, para os badges do website e da app
+- API REST (Flask) com contrato unificado, mapeando o ID interno da sala (`sala_b1_piso2`) para o ID público da biblioteca (`bg`)
 
-### Dashboard Web
+### Dashboard Web e App Móvel
 
-- Visualização em tempo real da ocupação e conforto ambiental
-- Código de cores por sala (verde → vermelho)
-- Atualização automática a cada 15 segundos
+Ambos os clientes consomem o **mesmo endpoint REST** (`/api/rooms/{id}`) servido pelo `processing/api.py` e partilham os mesmos ficheiros estáticos (`libraries.json`, `books.csv`).
+
+- **Website** (`website/`): HTML + JS vanilla, planta da sala em SVG, polling a cada 15 s, fallback para mock quando a API está offline
+- **App Android** (`app/`): Kotlin nativo, mesma planta em `Canvas` (`PlantaView`), `ApiClient` com `HttpURLConnection`+`org.json`, geofence de chegada à BG (PL8) que dispara notificações com a ocupação atual
+- Código de cores alinhado: 🟢 vazio, 🟡 parcial, 🔴 cheio
+
+---
+
+## 🔌 Contrato da API REST
+
+`processing/api.py` corre na porta 5000 (`http://localhost:5000` no PC, `http://10.0.2.2:5000` no emulador Android).
+
+| Método | Endpoint | Descrição |
+|---|---|---|
+| GET | `/api/health` | Sanidade do serviço |
+| GET | `/api/rooms` | Lista de salas com sensorização ativa |
+| GET | `/api/rooms/{id}` | Snapshot completo (ocupação + ambiente) |
+| GET | `/api/rooms/{id}/occupancy` | Apenas ocupação |
+| GET | `/api/rooms/{id}/environment` | Apenas dados ambientais |
+
+`{id}` aceita o ID público (`bg`) ou o interno (`sala_b1_piso2`).
+
+Forma da resposta de `/api/rooms/{id}`:
+
+```jsonc
+{
+  "room_id":        "bg",
+  "timestamp":      "2026-05-15T16:24:01",
+
+  // Ocupação
+  "count":          1,                       // pessoas detetadas (alias: "people")
+  "capacity":       8,
+  "tables":         2,
+  "chairs_total":   8,
+  "chairs_free":    7,
+  "occupancy_pct":  12.5,
+  "status":         "disponivel",            // 5 níveis para UI
+  "status_simple":  "livre",                 // 3 níveis para LED
+
+  // Ambiente — valores numéricos primários
+  "temperature":    21.8,                    // °C
+  "humidity":       48,                      // %
+  "air_quality":    441,                     // ADC 12-bit MQ-135
+  "light":          125,                     // ADC 12-bit fotodíodo
+  "light_digital":  0,
+  "noise_db":       32.5,
+
+  // Ambiente — classes textuais (badges)
+  "comfort":            "bom",               // bom | moderado | mau
+  "air_quality_class":  "aceitavel",         // bom | aceitavel | necessita_ventilacao | mau
+  "light_class":        "adequado",          // bom | adequado | insuficiente | escuro
+  "noise":              "baixo"              // baixo | moderado | elevado | muito_elevado
+}
+```
 
 ---
 
@@ -145,20 +198,28 @@ SA/
 │       ├── include/  lib/  test/
 │
 ├── processing/                        # Pipeline Python
-│   ├── detector.py                    #   YOLOv8 + DeepSORT
-│   ├── firebase_sync.py               #   Sincronização Firebase
-│   ├── api.py                         #   API REST (Flask)
-│   ├── config.py                      #   Configurações
-│   └── requirements.txt               #   Dependências Python
+│   ├── detector.py                    #   YOLOv11 + DeepSORT + push de ocupação
+│   ├── firebase_sync.py               #   Sincronização Firebase (2 projetos)
+│   ├── api.py                         #   API REST (Flask) — contrato unificado
+│   ├── config.py                      #   Configurações (sala, YOLO, thresholds)
+│   ├── requirements.txt               #   Dependências Python
+│   ├── secrets/                       #   ⚠️ NÃO versionar
+│   │   ├── vision-credentials.json    #   Service account do projeto Vision
+│   │   └── sensor-credentials.json    #   Service account do projeto Sensor
+│   └── temp_images/_annotated/        #   Frames com bounding boxes (debug)
 │
-├── website/                           # Dashboard web
-├── app/                               # App móvel
+├── website/                           # Dashboard web (HTML + CSS + JS vanilla)
+│   ├── index.html  biblioteca.html
+│   ├── js/  data/  style.css
+│
+├── app/                               # App Android (Kotlin)
+│   └── app/src/main/java/pt/uminho/sa/{data,geofence,ui}/
 │
 ├── docs/                              # Documentação
 │   ├── SA2026_paper_6906.pdf          #   Artigo (LNCS)
 │   ├── wiring_vision.md               #   Esquema de ligações — nó de visão
 │   ├── wiring_environmental.md        #   Esquema de ligações — nó ambiental
-│   └── firebase_setup.md              #   Guia de configuração Firebase
+│   └── firebase_setup.md              #   Guia de configuração Firebase (2 projetos)
 │
 ├── .gitignore
 ├── LICENSE
@@ -183,18 +244,21 @@ SA/
    cd SA
    ```
 
-2. **Configurar Firebase:**
+2. **Configurar Firebase (dois projetos):**
    - Seguir o guia em [`docs/firebase_setup.md`](docs/firebase_setup.md)
-   - Colocar `firebase_credentials.json` em `processing/`
+   - Criar `processing/secrets/` e colocar lá:
+     - `vision-credentials.json` (service account do projeto **Vision**, com Storage + RTDB)
+     - `sensor-credentials.json` (service account do projeto **Sensor**, com RTDB)
+   - Confirmar `VISION_DATABASE_URL`, `VISION_STORAGE_BUCKET` e `SENSOR_DATABASE_URL` em `processing/config.py`
 
 3. **Configurar firmware:**
-   - Editar `WIFI_SSID`, `WIFI_PASSWORD` e credenciais Firebase em `sensor/Sensor_NODE/src/main.cpp` e em `vision/Vision_NODE/src/main.cpp`.
+   - Editar `WIFI_SSID`, `WIFI_PASSWORD`, `API_KEY`, `USER_EMAIL`/`USER_PASSWORD` e `DATABASE_URL` em `sensor/src/main.cpp` e em `vision/src/main.cpp`.
    - Compilar e fazer upload com PlatformIO:
      ```bash
      # Nó ambiental (ESP32-S3)
-     pio run -d sensor/Sensor_NODE -t upload
-     # Nó de visão (ESP32-CAM)
-     pio run -d vision/Vision_NODE -t upload
+     pio run -d sensor -t upload
+     # Nó de visão (ESP32-CAM — requer adaptador USB-TTL, ver docs/wiring_vision.md)
+     pio run -d vision -t upload
      ```
 
 4. **Instalar dependências Python:**
@@ -203,18 +267,30 @@ SA/
    pip install -r requirements.txt
    ```
 
-5. **Iniciar processamento:**
+5. **Iniciar processamento (em terminais separados):**
    ```bash
-   python detector.py    # Pipeline YOLOv8 + DeepSORT
-   python api.py         # API REST (porta 5000)
+   python detector.py    # Pipeline YOLO + DeepSORT — pull de imagens, push de ocupação
+   python api.py         # API REST (porta 5000) — serve website e app
    ```
 
-6. **Abrir dashboard:**
+6. **Configuração da sala** (`processing/config.py`):
+   ```python
+   ROOM_TABLES       = 2     # nº de mesas no campo de visão
+   CHAIRS_PER_TABLE  = 4     # cadeiras por mesa
+   # ROOM_CAPACITY = 8 automaticamente
+   ```
+
+7. **Abrir o website:**
    ```bash
-   cd ../dashboard
+   cd website
    python -m http.server 8080
    # Abrir http://localhost:8080
    ```
+
+8. **App Android** (opcional):
+   - Abrir `app/` no Android Studio (Koala 2024.1.1+, JDK 17, SDK 34)
+   - No emulador, `Config.API_BASE` já aponta para `10.0.2.2:5000`
+   - Em telemóvel físico, mudar para o IP do PC na LAN em `app/app/src/main/java/pt/uminho/sa/data/Config.kt`
 
 ---
 

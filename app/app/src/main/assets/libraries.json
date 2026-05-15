@@ -122,14 +122,10 @@
     }
   ],
   "bg_layout": {
-    "descricao": "Sala de Leitura - Piso 1 da BGUM. A zona A está abrangida pelo campo de visão do nó de visão; as restantes zonas não são monitorizadas pela versão atual do sistema.",
+    "descricao": "Sala-piloto da BGUM monitorizada pelo nó de visão: 2 mesas de 4 lugares cada, totalizando 8 lugares no campo de visão da ESP32-CAM.",
     "zonas": [
-      { "id": "A", "nome": "Zona A - Mesas centrais", "lugares": 12, "monitorizada": true, "x": 30, "y": 30, "w": 40, "h": 25, "mesas": 2 },
-      { "id": "B", "nome": "Zona B - Janela norte", "lugares": 8, "monitorizada": false, "x": 5, "y": 5, "w": 20, "h": 20, "mesas": 1 },
-      { "id": "C", "nome": "Zona C - Janela sul", "lugares": 8, "monitorizada": false, "x": 75, "y": 5, "w": 20, "h": 20, "mesas": 1 },
-      { "id": "D", "nome": "Zona D - Cabines individuais", "lugares": 6, "monitorizada": false, "x": 5, "y": 60, "w": 20, "h": 30, "mesas": 6 },
-      { "id": "E", "nome": "Zona E - Mesa de grupo", "lugares": 10, "monitorizada": false, "x": 75, "y": 60, "w": 20, "h": 30, "mesas": 1 },
-      { "id": "F", "nome": "Zona F - Mesas longas", "lugares": 12, "monitorizada": false, "x": 30, "y": 65, "w": 40, "h": 25, "mesas": 2 }
+      { "id": "M1", "nome": "Mesa 1", "lugares": 4, "monitorizada": true, "x": 15, "y": 25, "w": 30, "h": 50, "mesas": 1 },
+      { "id": "M2", "nome": "Mesa 2", "lugares": 4, "monitorizada": true, "x": 55, "y": 25, "w": 30, "h": 50, "mesas": 1 }
     ]
   }
 }

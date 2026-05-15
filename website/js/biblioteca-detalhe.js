@@ -162,7 +162,7 @@ function renderSensorBlock() {
     <div class="panel" style="margin-top: 20px;">
       <h2><i class="fa-solid fa-temperature-half"></i>Conforto ambiental</h2>
       <p style="font-size: 13px; color: var(--text-muted); margin: -6px 0 12px;">
-        Nó ambiental ESP32 com sensores DHT11, MQ-135, LDR e KY-038 a transmitir para Firebase a cada 30 s.
+        Nó ambiental ESP32-S3 com sensores DHT11 (temp./hum.), MQ-135 (qualidade do ar), fotodíodo LM393 (iluminância) e microfone MEMS I2S MSM261S4030H0 (ruído), a transmitir para Firebase a cada 30 s.
       </p>
 
       <div class="sensor-grid" id="sensor-grid">
@@ -176,7 +176,7 @@ function renderSensorBlock() {
 function zoneHtml(z) {
   const cls = z.monitorizada ? "zone monitored" : "zone unmonitored";
   return `
-    <div class="${cls}" id="zone-${z.id}"
+    <div class="${cls}" id="zone-${z.id}" data-lugares="${z.lugares}"
          style="left:${z.x}%; top:${z.y}%; width:${z.w}%; height:${z.h}%;">
       <div>
         <div class="zone-id">${z.id}</div>
@@ -224,15 +224,35 @@ function paintOccupancy(d) {
 }
 
 function paintZone(d) {
-  /* Apenas a zona A é monitorizada — escreve número e classe de cor */
-  const cell = document.getElementById("zone-A");
-  if (!cell) return;
-  const pct  = Math.min(1, d.count / (d.capacity || 1));
-  const tier = SDB.occupancyTier(pct);
-  /* limpa classes occ-* anteriores */
-  ["empty","low","mid","high","full"].forEach(t => cell.classList.remove("occ-" + t));
-  cell.classList.add("occ-" + tier);
-  document.getElementById("zone-A-count").textContent = `${d.count}/${d.capacity}`;
+  /* Distribui as pessoas pelas mesas monitorizadas em ordem (preenchimento
+     sequencial mesa-a-mesa) — bate certo com a heurística que o detector.py
+     usa para classificar livre/parcial/cheio.
+
+     Cor da MESA usa um esquema simples de 3 tiers (alinhado com a legenda
+     "Sem sensor · Monitorizada · Ocupação média · Ocupação alta"):
+        0 pessoas       → empty (verde)
+        1..(cap-1)      → mid   (amarelo)   ← qualquer mesa parcial
+        cap (cheia)     → full  (vermelho)
+  */
+  const cells = document.querySelectorAll(".zone.monitored");
+  let remaining = d.count || 0;
+
+  cells.forEach(cell => {
+    const localCap   = parseInt(cell.dataset.lugares, 10) || 0;
+    const localCount = Math.min(remaining, localCap);
+    remaining -= localCount;
+
+    let tier;
+    if (localCount <= 0)            tier = "empty";
+    else if (localCount >= localCap) tier = "full";
+    else                             tier = "mid";
+
+    ["empty","low","mid","high","full"].forEach(t => cell.classList.remove("occ-" + t));
+    cell.classList.add("occ-" + tier);
+
+    const countEl = cell.querySelector(".zone-count");
+    if (countEl) countEl.textContent = `${localCount}/${localCap}`;
+  });
 }
 
 function paintSensors(d) {

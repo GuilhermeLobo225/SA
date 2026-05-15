@@ -21,15 +21,16 @@
 
 // ======================== CONFIGURAÇÃO ========================
 // Wi-Fi
-#define WIFI_SSID      "YOUR_WIFI_SSID"
-#define WIFI_PASSWORD  "YOUR_WIFI_PASSWORD"
+#define WIFI_SSID      "luismpso"
+#define WIFI_PASSWORD  "Luis2002"
 
 // Firebase
-#define API_KEY        "YOUR_FIREBASE_API_KEY"
-#define STORAGE_BUCKET "YOUR_PROJECT.appspot.com"
-#define DATABASE_URL   "https://YOUR_PROJECT-default-rtdb.firebaseio.com"
+#define API_KEY        "AIzaSyAiJmQoEoeO0JrfeVRpwmQwWVu4mSWOoEg"
+#define STORAGE_BUCKET "vision-node-ef817.firebasestorage.app"
+// ⚠️ Tens de criar o Realtime Database no Firebase Console e confirmar este URL.
+#define DATABASE_URL   "https://vision-node-ef817-default-rtdb.europe-west1.firebasedatabase.app/"
 #define USER_EMAIL     "esp32cam@smartroom.local"
-#define USER_PASSWORD  "YOUR_SERVICE_PASSWORD"
+#define USER_PASSWORD  "admin123"
 
 // Identificação da sala
 #define ROOM_ID        "sala_b1_piso2"
@@ -219,7 +220,7 @@ void captureAndUpload() {
   }
 
   String timestamp = getTimestamp();
-  String path = String("images/") + ROOM_ID + "/" + timestamp + ".jpg";
+  String path = String("dados_camara/") + ROOM_ID + "/" + timestamp + ".jpg";
 
   Serial.printf("[Upload] A enviar %s (%u bytes)...\n", path.c_str(), (unsigned)fb->len);
 
