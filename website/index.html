@@ -26,7 +26,7 @@
       <a href="#catalogo"    class="sidebar-link"><i class="fa-solid fa-magnifying-glass"></i>Catálogo</a>
       <a href="#"            class="sidebar-link"><i class="fa-solid fa-book-open"></i>Biblioteca Digital</a>
       <a href="#"            class="sidebar-link"><i class="fa-solid fa-handshake"></i>Serviços</a>
-      <a href="#"            class="sidebar-link"><i class="fa-solid fa-circle-info"></i>Apoio</a>
+      <a href="sobre.html"   class="sidebar-link"><i class="fa-solid fa-circle-info"></i>Sobre o sistema</a>
       <a href="#"            class="sidebar-link"><i class="fa-solid fa-right-to-bracket"></i>Minha conta</a>
     </nav>
     <div class="sidebar-footer">
@@ -38,6 +38,9 @@
   <main class="main">
 
     <header class="topbar">
+      <button class="mobile-menu-btn" aria-label="Abrir menu">
+        <i class="fa-solid fa-bars"></i>
+      </button>
       <div class="crumbs">
         <a href="index.html">Portal</a>
         <span class="sep">/</span>
@@ -102,7 +105,10 @@
 
 </div>
 
+<div class="sidebar-overlay" aria-hidden="true"></div>
+
 <script src="js/api.js"></script>
 <script src="js/bibliotecas.js"></script>
+<script src="js/mobile-nav.js"></script>
 </body>
 </html>

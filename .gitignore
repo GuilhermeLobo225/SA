@@ -28,6 +28,8 @@ processing/secrets/
 *.onnx
 runs/
 weights/
+processing/ml/data/
+processing/temp_images/
 
 # ============================================================
 # Temporários / imagens capturadas

@@ -207,5 +207,205 @@ def health():
     return jsonify({"status": "ok", "service": "sala-estudo-api"})
 
 
+# ============================================================
+# Endpoint de série temporal + previsão curta
+# ============================================================
+# Lazy imports — só carrega pandas/forecast_service quando este endpoint é
+# chamado pela primeira vez. Mantém arranque rápido para quem só usa /current.
+_lazy = {}
+
+
+def _get_history_deps():
+    if "pd" not in _lazy:
+        import pandas as pd            # noqa: WPS433
+        from firebase_admin import db  # noqa: WPS433
+        from forecast_service import forecast_series  # noqa: WPS433
+        _lazy["pd"] = pd
+        _lazy["db"] = db
+        _lazy["forecast_series"] = forecast_series
+    return _lazy["pd"], _lazy["db"], _lazy["forecast_series"]
+
+
+# Targets aceites e onde encontrá-los no Firebase (sub-árvore + nome do campo)
+HISTORY_TARGETS = {
+    "temperature":     ("environment", "temperature",     "°C"),
+    "humidity":        ("environment", "humidity",        "%"),
+    "air_quality":     ("environment", "air_quality_raw", "ADC"),
+    "light":           ("environment", "light_raw",       "ADC"),
+    "noise_db":        ("environment", "noise_db",        "dB rel."),
+    "people":          ("occupancy",   "people",          "pessoas"),
+}
+
+
+def _fetch_history_df(internal_id: str, sub: str, field: str, hours: float):
+    """Lê rooms/<id>/<sub>/history e devolve um DataFrame [timestamp, value]."""
+    pd, db, _ = _get_history_deps()
+    path = f"rooms/{internal_id}/{sub}/history"
+    ref = db.reference(path, app=sync.sensor_app)
+    raw = ref.get() or {}
+    if not raw:
+        return pd.DataFrame(columns=["timestamp", "value"])
+    rows = []
+    for item in raw.values():
+        ts = item.get("timestamp")
+        v  = item.get(field)
+        if ts is None or v is None:
+            continue
+        rows.append({"timestamp": ts, "value": v})
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    df = df.dropna(subset=["timestamp"]).sort_values("timestamp")
+    cutoff = pd.Timestamp.now() - pd.Timedelta(hours=hours)
+    df = df[df["timestamp"] >= cutoff].reset_index(drop=True)
+    return df
+
+
+@app.route("/api/rooms/<room_id>/history", methods=["GET"])
+def get_history(room_id):
+    """
+    Série temporal recente + previsão curta para o frontend.
+    Query params:
+      target           — temperature | humidity | air_quality | light |
+                          noise_db | people
+      hours            — janela histórica (default 4)
+      forecast_minutes — horizonte da previsão (default 60)
+    """
+    from flask import request   # local import — Flask já está importado em cima
+    target  = request.args.get("target", "temperature")
+    hours   = float(request.args.get("hours", 4))
+    horizon = int(request.args.get("forecast_minutes", 60))
+
+    internal_id = resolve_internal_id(room_id)
+    if internal_id is None:
+        return jsonify({"error": f"Sala '{room_id}' não encontrada"}), 404
+    if target not in HISTORY_TARGETS:
+        return jsonify({"error": f"target inválido. Use um de: {list(HISTORY_TARGETS)}"}), 400
+
+    sub, field, unit = HISTORY_TARGETS[target]
+    df = _fetch_history_df(internal_id, sub, field, hours)
+    pd, _, forecast_series = _get_history_deps()
+
+    if df.empty:
+        return jsonify({
+            "target": target, "unit": unit,
+            "history": [], "forecast": [], "model": "naive",
+            "note": "Sem histórico disponível para este target.",
+        })
+
+    # Histórico (1 ponto por timestamp; valores numéricos)
+    df["value"] = pd.to_numeric(df["value"], errors="coerce")
+    df = df.dropna()
+    series = df.set_index("timestamp")["value"]
+
+    # Previsão curta — só faz sentido para targets numéricos contínuos.
+    # Para `people` devolvemos vazia (a previsão de ocupação é trabalho futuro).
+    if target == "people":
+        forecast_series_out = pd.Series(dtype=float)
+        model = "n/a"
+    else:
+        forecast_series_out, model = forecast_series(series, minutes_ahead=horizon)
+
+    payload = {
+        "target":   target,
+        "unit":     unit,
+        "hours":    hours,
+        "history":  [
+            {"t": ts.isoformat(timespec="seconds"), "v": float(v)}
+            for ts, v in series.items()
+        ],
+        "forecast": [
+            {"t": ts.isoformat(timespec="seconds"), "v": float(v)}
+            for ts, v in forecast_series_out.items()
+        ],
+        "model":    model,
+    }
+    return jsonify(payload)
+
+
+# ============================================================
+# Endpoint de estatísticas do dia (agregados desde 00:00 local)
+# ============================================================
+@app.route("/api/rooms/<room_id>/stats", methods=["GET"])
+def get_stats(room_id):
+    """Métricas agregadas das últimas 24h ou desde 00:00 (configurável).
+
+    Devolve:
+      - occupancy: pico, média, % do tempo com sala cheia/parcial/livre
+      - environment: min/max/média temperatura, humidade; pico ruído; pior ar
+      - last_24h_points: nº amostras consideradas
+    """
+    from flask import request
+    internal_id = resolve_internal_id(room_id)
+    if internal_id is None:
+        return jsonify({"error": f"Sala '{room_id}' não encontrada"}), 404
+
+    hours = float(request.args.get("hours", 24))
+    pd, _, _ = _get_history_deps()
+
+    env_df = _fetch_history_df(internal_id, "environment", "temperature", hours)
+    # Para conforto/ar/ruído precisamos das colunas extra → ir buscar com mais campos
+    # Versão simples: re-puxar com cada campo (poucas chamadas, é OK)
+    def col(field):
+        df = _fetch_history_df(internal_id, "environment", field, hours)
+        return df.set_index("timestamp")["value"] if not df.empty else pd.Series(dtype=float)
+
+    temp  = col("temperature")
+    hum   = col("humidity")
+    air   = col("air_quality_raw")
+    noise = col("noise_db")
+
+    occ_df = _fetch_history_df(internal_id, "occupancy", "people", hours)
+    occ_status_df = _fetch_history_df(internal_id, "occupancy", "status", hours)
+
+    def num_summary(s, fmt=lambda v: round(v, 1)):
+        if s.empty:
+            return {"min": None, "max": None, "avg": None, "median": None}
+        return {
+            "min":    fmt(float(s.min())),
+            "max":    fmt(float(s.max())),
+            "avg":    fmt(float(s.mean())),
+            "median": fmt(float(s.median())),
+        }
+
+    # Hora mais quente / mais fresca
+    hottest = coldest = None
+    if not temp.empty:
+        hottest = temp.idxmax().isoformat(timespec="seconds")
+        coldest = temp.idxmin().isoformat(timespec="seconds")
+
+    # Ocupação
+    occ_summary = {
+        "peak": None, "avg": None, "median": None, "min": None,
+        "pct_livre": 0, "pct_parcial": 0, "pct_cheio": 0,
+    }
+    if not occ_df.empty:
+        ppl = occ_df.set_index("timestamp")["value"].astype(float)
+        occ_summary["peak"]   = int(ppl.max())
+        occ_summary["min"]    = int(ppl.min())
+        occ_summary["avg"]    = round(float(ppl.mean()),   1)
+        occ_summary["median"] = round(float(ppl.median()), 1)
+    if not occ_status_df.empty:
+        statuses = occ_status_df["value"].astype(str)
+        total = max(1, len(statuses))
+        for k in ("livre", "parcial", "cheio"):
+            occ_summary[f"pct_{k}"] = round((statuses == k).sum() * 100 / total, 1)
+
+    return jsonify({
+        "room_id":         to_public_id(internal_id),
+        "hours_window":    hours,
+        "occupancy":       occ_summary,
+        "temperature":     {**num_summary(temp),  "hottest_at": hottest, "coldest_at": coldest},
+        "humidity":        num_summary(hum),
+        "air_quality":     num_summary(air, fmt=lambda v: int(v)),
+        "noise_db":        num_summary(noise),
+        "samples":         {
+            "environment": int(len(temp)),
+            "occupancy":   int(len(occ_df)),
+        },
+    })
+
+
 if __name__ == "__main__":
     app.run(host=API_HOST, port=API_PORT, debug=True)

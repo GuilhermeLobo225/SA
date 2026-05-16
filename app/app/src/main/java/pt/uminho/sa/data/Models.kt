@@ -5,8 +5,7 @@ package pt.uminho.sa.data
  *
  * Mantemos todas as estruturas no mesmo ficheiro porque são pequenas e
  * relacionadas. Não usamos kotlinx-serialization para evitar mais um plugin —
- * o parsing é feito à mão em AssetLoader / ApiClient com org.json (igual ao
- * estilo da PL7 "parse the received JSON").
+ * o parsing é feito à mão em AssetLoader / ApiClient com org.json.
  */
 
 /* ---------- Metadados estáticos (vêm de assets/libraries.json) ---------- */
@@ -65,25 +64,87 @@ data class Livro(
 /**
  * Resposta de /api/rooms/{id}.
  *
+ * Reflete o contrato completo do `build_room_payload` (processing/api.py):
+ * ocupação + ambiente, valores numéricos + classes textuais.
+ *
  * Os campos opcionais (null) cobrem o caso em que algum sensor não está a
  * reportar; a UI mostra "—" nesses casos.
  */
 data class RoomData(
     val roomId: String,
+    val timestamp: String?,
+
+    // Ocupação
     val count: Int,
     val capacity: Int,
+    val tables: Int,
+    val chairsTotal: Int,
+    val chairsFree: Int,
+    /** Percentagem 0..1 vinda da API; em fallback, calculada a partir de count/capacity. */
+    val occupancyPctRaw: Float,
+    /** 5 níveis (vazio, disponivel, parcialmente_ocupado, quase_cheio, cheio). */
     val status: String,
-    val comfort: String?,
+    /** 3 níveis (livre, parcial, cheio) — usado pelo firmware do LED. */
+    val statusSimple: String?,
+
+    // Ambiente — numéricos primários
     val temperature: Double?,
     val humidity: Double?,
     val airQuality: Int?,
     val light: Int?,
+    val lightDigital: Int?,
+    val noiseDb: Double?,
+
+    // Ambiente — classes textuais
+    val comfort: String?,
+    val airQualityClass: String?,
+    val lightClass: String?,
     val noise: String?,
-    val timestamp: String?,
+
     /** "api" ou "mock" — usado pela UI para mostrar a fonte ao utilizador */
     val source: String
 ) {
     /** Percentagem de ocupação no intervalo [0f, 1f]. */
     val occupancyPct: Float
-        get() = if (capacity > 0) (count.toFloat() / capacity).coerceIn(0f, 1f) else 0f
+        get() = when {
+            occupancyPctRaw > 0f       -> occupancyPctRaw.coerceIn(0f, 1f)
+            capacity > 0               -> (count.toFloat() / capacity).coerceIn(0f, 1f)
+            else                        -> 0f
+        }
+}
+
+/* ---------- Histórico + previsão (vêm de /api/rooms/{id}/history) ---------- */
+
+/**
+ * Um ponto no tempo de uma série (histórico ou previsão).
+ *
+ *  - `t` vem em ISO-8601 sem timezone (timestamp local do servidor),
+ *    como devolvido por `pd.Timestamp.isoformat(timespec="seconds")`.
+ *  - `v` é numérico (unidade depende do target).
+ */
+data class HistoryPoint(
+    val timestampIso: String,
+    val value: Double
+)
+
+/**
+ * Resposta de /api/rooms/{id}/history.
+ *
+ *   target           — qual a métrica (temperature, humidity, …)
+ *   unit             — unidade legível para o eixo Y
+ *   model            — modelo usado para a previsão (holt-winters / naive / …)
+ *   history          — pontos do histórico recente
+ *   forecast         — pontos previstos (pode vir vazio para "people")
+ *   source           — "api" se veio da API, "mock" se foi gerado em fallback
+ */
+data class HistoryResponse(
+    val target: String,
+    val unit: String,
+    val model: String,
+    val history: List<HistoryPoint>,
+    val forecast: List<HistoryPoint>,
+    val source: String
+) {
+    val hasData: Boolean get() = history.isNotEmpty()
+    val hasForecast: Boolean get() = forecast.isNotEmpty()
 }

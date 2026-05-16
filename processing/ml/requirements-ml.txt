@@ -1,0 +1,15 @@
+# Dependências adicionais SÓ para os módulos preditivos (ml/).
+# Não é preciso instalar isto para correr detector.py / api.py.
+#
+# Instalação:
+#   pip install -r ml/requirements-ml.txt
+#
+# Notas:
+#   - torch já vem por dependência transitiva do ultralytics (no requirements.txt
+#     da pasta processing/), por isso não está listado aqui.
+#   - statsmodels é grande mas estável. Alternativa moderna: 'prophet' (descomentar).
+
+pandas>=2.0.0
+matplotlib>=3.7.0
+statsmodels>=0.14.0
+# prophet>=1.1.5     # alternativa ao Holt-Winters, com sazonalidade hands-off

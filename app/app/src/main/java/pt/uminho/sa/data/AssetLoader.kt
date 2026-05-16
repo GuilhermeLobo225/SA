@@ -11,9 +11,8 @@ import java.io.InputStreamReader
  * Mantemos as duas fontes em ficheiros pequenos para os ler de forma síncrona —
  * podemos chamar isto a partir de uma corrotina IO sem complicar.
  *
- * O parsing é feito com org.json (built-in Android), como na PL7 ("parse the
- * received JSON"). Optei por não usar Gson/Moshi para reduzir dependências e
- * para que o código fique mais próximo do que vimos em aula.
+ * O parsing é feito com org.json (built-in Android). Optámos por não usar
+ * Gson/Moshi para reduzir dependências.
  */
 object AssetLoader {
 

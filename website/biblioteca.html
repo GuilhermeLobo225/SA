@@ -26,7 +26,7 @@
       <a href="index.html#catalogo" class="sidebar-link"><i class="fa-solid fa-magnifying-glass"></i>Catálogo</a>
       <a href="#" class="sidebar-link"><i class="fa-solid fa-book-open"></i>Biblioteca Digital</a>
       <a href="#" class="sidebar-link"><i class="fa-solid fa-handshake"></i>Serviços</a>
-      <a href="#" class="sidebar-link"><i class="fa-solid fa-circle-info"></i>Apoio</a>
+      <a href="sobre.html" class="sidebar-link"><i class="fa-solid fa-circle-info"></i>Sobre o sistema</a>
       <a href="#" class="sidebar-link"><i class="fa-solid fa-right-to-bracket"></i>Minha conta</a>
     </nav>
     <div class="sidebar-footer">© UMinho · SDUM</div>
@@ -36,6 +36,9 @@
   <main class="main">
 
     <header class="topbar">
+      <button class="mobile-menu-btn" aria-label="Abrir menu">
+        <i class="fa-solid fa-bars"></i>
+      </button>
       <div class="crumbs">
         <a href="index.html">Portal</a>
         <span class="sep">/</span>
@@ -64,7 +67,12 @@
 
 </div>
 
+<div class="sidebar-overlay" aria-hidden="true"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script src="js/api.js"></script>
 <script src="js/biblioteca-detalhe.js"></script>
+<script src="js/mobile-nav.js"></script>
 </body>
 </html>

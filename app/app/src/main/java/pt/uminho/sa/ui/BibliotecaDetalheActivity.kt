@@ -2,8 +2,8 @@ package pt.uminho.sa.ui
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -14,6 +14,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -23,6 +25,7 @@ import pt.uminho.sa.data.ApiClient
 import pt.uminho.sa.data.AssetLoader
 import pt.uminho.sa.data.Biblioteca
 import pt.uminho.sa.data.Config
+import pt.uminho.sa.data.HistoryResponse
 import pt.uminho.sa.data.RoomData
 import pt.uminho.sa.databinding.ActivityBibliotecaDetalheBinding
 import pt.uminho.sa.databinding.ItemSensorTileBinding
@@ -36,8 +39,8 @@ import kotlin.math.roundToInt
 /**
  * Ecrã de detalhe de uma biblioteca.
  *
- * Para a BG (sensorizacao=true) mostra: ocupação ao vivo, planta, sensores
- * e botões para registar/remover a geofence (PL8).
+ * Para a BG (sensorizacao=true) mostra: ocupação ao vivo, planta, sensores,
+ * um painel resumo de previsão e botões para registar/remover a geofence.
  *
  * Para as restantes, mostra apenas a ficha e um banner a explicar que ainda
  * não têm sensorização — defendendo a decisão de design: o sistema-piloto
@@ -50,6 +53,9 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
 
     /** Job da corrotina de polling. Mantemos a referência para a cancelar em onStop. */
     private var pollingJob: Job? = null
+
+    /** Job do refresh do painel de previsão (cadência mais lenta que o polling). */
+    private var previsaoJob: Job? = null
 
     private val geofenceHandler by lazy { GeofenceHandler(this) }
 
@@ -79,29 +85,37 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
 
         // 3) Se tem sensorização, ativar bloco completo + geofencing + polling
         if (biblioteca.sensorizacao) {
-            b.sensorBlock.visibility    = View.VISIBLE
-            b.geofenceActions.visibility = View.VISIBLE
-            b.noSensorBanner.visibility = View.GONE
+            b.sensorBlock.visibility       = View.VISIBLE
+            b.geofenceActions.visibility   = View.VISIBLE
+            b.btnAbrirHistorico.visibility = View.VISIBLE
+            b.previsaoBlock.visibility     = View.VISIBLE
+            b.noSensorBanner.visibility    = View.GONE
             configurarPlanta()
             configurarBotoesGeofence()
+            configurarBotaoHistorico()
         } else {
-            b.sensorBlock.visibility    = View.GONE
-            b.geofenceActions.visibility = View.GONE
-            b.noSensorBanner.visibility = View.VISIBLE
+            b.sensorBlock.visibility       = View.GONE
+            b.geofenceActions.visibility   = View.GONE
+            b.btnAbrirHistorico.visibility = View.GONE
+            b.previsaoBlock.visibility     = View.GONE
+            b.noSensorBanner.visibility    = View.VISIBLE
         }
     }
 
     override fun onStart() {
         super.onStart()
-        // Arranca o polling só quando o ecrã está visível
-        if (biblioteca.sensorizacao) iniciarPolling()
+        // Arranca os polls só quando o ecrã está visível
+        if (biblioteca.sensorizacao) {
+            iniciarPolling()
+            iniciarRefreshPrevisao()
+        }
     }
 
     override fun onStop() {
         super.onStop()
-        // Pára o polling para não gastar bateria com a app em background
-        pollingJob?.cancel()
-        pollingJob = null
+        // Pára os pollings para não gastar bateria com a app em background
+        pollingJob?.cancel(); pollingJob = null
+        previsaoJob?.cancel(); previsaoJob = null
     }
 
     /* ============================================================
@@ -151,7 +165,7 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
     }
 
     /* ============================================================
-       Polling à API (PL7 — HTTP GET, parse JSON)
+       Polling à API (HTTP GET + parse JSON)
        ============================================================ */
 
     private fun iniciarPolling() {
@@ -200,32 +214,57 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
     /**
      * Recria os mosaicos de sensores a cada update. Para 5 mosaicos isto não
      * tem custo notável e simplifica imenso vs. manter views permanentes.
+     *
+     * Limiares de alerta alinhados com o README do projeto:
+     *  - Temperatura 20–26 °C (ASHRAE 55)
+     *  - Humidade 30–70 %
+     *  - Qualidade do ar < 800 (ADC bruto 12-bit do MQ-135)
+     *  - Iluminância >= 2500 (ADC do fotodíodo) ou DO=0
+     *  - Ruído < 55 dB (relativo, MSM261 I2S)
      */
     private fun atualizarSensores(d: RoomData) {
         b.gridSensores.removeAllViews()
 
-        // Os limiares de "alert" vêm do README do projeto (ASHRAE 55, OMS, EN 12464-1)
+        val tempAlerta  = d.temperature?.let { it < 20.0 || it > 26.0 } ?: false
+        val humAlerta   = d.humidity?.let { it < 30.0 || it > 70.0 } ?: false
+        val arAlerta    = d.airQuality?.let { it > 800 } ?: false
+        // Para a iluminância usamos OU o sinal digital (DO=0 → escuro) OU o ADC abaixo do limiar
+        val luzAlerta   = (d.lightDigital == 0) || (d.light?.let { it < 2500 } ?: false)
+        val ruidoNumAlerta = d.noiseDb?.let { it >= 55.0 } ?: false
+        val ruidoTxtAlerta = d.noise == "elevado" || d.noise == "muito_elevado"
+        val ruidoAlerta = ruidoNumAlerta || ruidoTxtAlerta
+
         val tiles = listOf(
-            SensorTile(R.drawable.ic_thermometer,
-                getString(R.string.sensor_temperatura),
-                d.temperature?.let { String.format(Locale.US, "%.1f °C", it) } ?: "—",
-                alerta = d.temperature?.let { it < 20.0 || it > 26.0 } ?: false),
-            SensorTile(R.drawable.ic_info,
-                getString(R.string.sensor_humidade),
-                d.humidity?.let { "${it.toInt()} %" } ?: "—",
-                alerta = d.humidity?.let { it < 30.0 || it > 70.0 } ?: false),
-            SensorTile(R.drawable.ic_info,
-                getString(R.string.sensor_qualidade_ar),
-                d.airQuality?.toString() ?: "—",
-                alerta = d.airQuality?.let { it > 400 } ?: false),
-            SensorTile(R.drawable.ic_info,
-                getString(R.string.sensor_iluminacao),
-                d.light?.let { "$it lux" } ?: "—",
-                alerta = d.light?.let { it < 500 } ?: false),
-            SensorTile(R.drawable.ic_info,
-                getString(R.string.sensor_ruido),
-                noiseLabel(d.noise),
-                alerta = d.noise == "elevado")
+            SensorTile(
+                icone  = R.drawable.ic_thermometer,
+                label  = getString(R.string.sensor_temperatura),
+                valor  = d.temperature?.let { String.format(Locale.US, "%.1f °C", it) } ?: "—",
+                alerta = tempAlerta
+            ),
+            SensorTile(
+                icone  = R.drawable.ic_info,
+                label  = getString(R.string.sensor_humidade),
+                valor  = d.humidity?.let { "${it.toInt()} %" } ?: "—",
+                alerta = humAlerta
+            ),
+            SensorTile(
+                icone  = R.drawable.ic_info,
+                label  = getString(R.string.sensor_qualidade_ar),
+                valor  = formatAr(d),
+                alerta = arAlerta
+            ),
+            SensorTile(
+                icone  = R.drawable.ic_info,
+                label  = getString(R.string.sensor_iluminacao),
+                valor  = formatLuz(d),
+                alerta = luzAlerta
+            ),
+            SensorTile(
+                icone  = R.drawable.ic_info,
+                label  = getString(R.string.sensor_ruido),
+                valor  = formatRuido(d),
+                alerta = ruidoAlerta
+            )
         )
 
         val inflater = LayoutInflater.from(this)
@@ -251,8 +290,128 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
 
     private data class SensorTile(val icone: Int, val label: String, val valor: String, val alerta: Boolean)
 
+    private fun formatAr(d: RoomData): String {
+        val n = d.airQuality?.toString() ?: "—"
+        val classe = d.airQualityClass?.let { " · ${classeAr(it)}" } ?: ""
+        return "$n$classe"
+    }
+
+    private fun formatLuz(d: RoomData): String {
+        val n = d.light?.toString() ?: "—"
+        val flag = if (d.lightDigital == 0) " · escuro" else ""
+        return "$n$flag"
+    }
+
+    private fun formatRuido(d: RoomData): String {
+        val num = d.noiseDb?.let { String.format(Locale.US, "%.1f dB", it) }
+        val txt = noiseLabel(d.noise)
+        return when {
+            num != null && txt != "—" -> "$num · $txt"
+            num != null               -> num
+            else                       -> txt
+        }
+    }
+
+    private fun classeAr(s: String): String = when (s) {
+        "bom"                  -> "bom"
+        "aceitavel"            -> "aceitável"
+        "necessita_ventilacao" -> "ventilar"
+        "mau"                  -> "mau"
+        else                    -> s
+    }
+
     /* ============================================================
-       Geofencing (PL8)
+       Painel resumo de previsão (próxima hora)
+       ============================================================ */
+
+    private fun configurarBotaoHistorico() {
+        b.btnAbrirHistorico.setOnClickListener {
+            val i = Intent(this, HistoricoActivity::class.java).apply {
+                putExtra(HistoricoActivity.EXTRA_ROOM_ID, biblioteca.apiRoomId ?: biblioteca.id)
+                putExtra(HistoricoActivity.EXTRA_TITULO, biblioteca.nome)
+            }
+            startActivity(i)
+        }
+    }
+
+    private fun iniciarRefreshPrevisao() {
+        previsaoJob?.cancel()
+        previsaoJob = lifecycleScope.launch {
+            while (isActive) {
+                refrescarPrevisao()
+                delay(PREVISAO_REFRESH_MS)
+            }
+        }
+    }
+
+    /**
+     * Vai buscar 3 targets em paralelo (temperatura, ruído, ar) e mostra o
+     * valor previsto para ~30 minutos à frente + uma seta de tendência
+     * comparando com o último ponto histórico.
+     */
+    private suspend fun refrescarPrevisao() {
+        val roomId = biblioteca.apiRoomId ?: biblioteca.id
+        val targets = listOf("temperature", "noise_db", "air_quality")
+        val responses = withContext(Dispatchers.IO) {
+            targets.map { t -> async { ApiClient.fetchHistory(roomId, t, hours = 2f, forecastMinutes = 60) } }
+                .awaitAll()
+        }
+        // 0: temperatura, 1: ruído, 2: ar
+        atualizarItemPrevisao(b.prevTempValor, b.prevTempSeta, responses[0], "°C", 1)
+        atualizarItemPrevisao(b.prevRuidoValor, b.prevRuidoSeta, responses[1], "dB", 1)
+        atualizarItemPrevisao(b.prevArValor,    b.prevArSeta,    responses[2], "",  0)
+
+        // Fonte (api ou mock)
+        val anySource = responses.firstOrNull()?.source ?: "mock"
+        b.prevFonte.text = if (anySource == "api")
+            getString(R.string.previsao_fonte_api)
+        else
+            getString(R.string.previsao_fonte_mock)
+    }
+
+    private fun atualizarItemPrevisao(
+        valorTv: android.widget.TextView,
+        setaTv:  android.widget.TextView,
+        resp:    HistoryResponse,
+        unidade: String,
+        decimais: Int
+    ) {
+        if (!resp.hasForecast) {
+            valorTv.text = "—"
+            setaTv.text  = ""
+            return
+        }
+        val previsto = resp.forecast.lastOrNull()?.value ?: return
+        val atual    = resp.history.lastOrNull()?.value
+        val fmt = if (decimais > 0) String.format(Locale.US, "%.${decimais}f", previsto)
+                  else              previsto.roundToInt().toString()
+        valorTv.text = if (unidade.isNotEmpty()) "$fmt $unidade" else fmt
+
+        if (atual == null) {
+            setaTv.text = "→"
+            setaTv.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+            return
+        }
+        val delta = previsto - atual
+        val absLimite = 0.5 * (kotlin.math.abs(atual) + 1.0) * 0.02 // 2% relativo, com soft floor
+        when {
+            kotlin.math.abs(delta) < absLimite -> {
+                setaTv.text = "→"
+                setaTv.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
+            }
+            delta > 0 -> {
+                setaTv.text = "↗"
+                setaTv.setTextColor(ContextCompat.getColor(this, R.color.status_high))
+            }
+            else -> {
+                setaTv.text = "↘"
+                setaTv.setTextColor(ContextCompat.getColor(this, R.color.status_free))
+            }
+        }
+    }
+
+    /* ============================================================
+       Geofencing
        ============================================================ */
 
     @SuppressLint("MissingPermission")
@@ -292,11 +451,12 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
     }
 
     private fun noiseLabel(noise: String?): String = when (noise) {
-        "baixo"    -> "Baixo"
-        "moderado" -> "Moderado"
-        "elevado"  -> "Elevado"
-        null, ""   -> "—"
-        else       -> noise
+        "baixo"          -> "Baixo"
+        "moderado"       -> "Moderado"
+        "elevado"        -> "Elevado"
+        "muito_elevado"  -> "Muito elevado"
+        null, ""         -> "—"
+        else              -> noise
     }
 
     /** Cor para o texto da percentagem, em função do tier de ocupação. */
@@ -308,18 +468,31 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
         else         -> R.color.status_free
     })
 
-    /** Converte ISO-8601 (UTC) para "HH:mm:ss" em hora local. */
+    /**
+     * Converte timestamp ISO-8601 (com ou sem 'Z') para "HH:mm:ss" em hora
+     * local. O api.py devolve ora ISO sem timezone (do pandas), ora com Z
+     * (do isoformat do Python) — toleramos ambos.
+     */
     private fun formatarHora(iso: String?): String {
         if (iso.isNullOrEmpty()) return "—"
-        return try {
-            val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
-            }
-            val out = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-            val date: Date = parser.parse(iso) ?: return iso
-            out.format(date)
-        } catch (e: Exception) { iso }
+        val parsers = listOf(
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") },
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss",    Locale.US).apply { timeZone = TimeZone.getDefault() }
+        )
+        val out = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        for (p in parsers) {
+            try {
+                val d: Date? = p.parse(iso)
+                if (d != null) return out.format(d)
+            } catch (_: Exception) { /* tentar o próximo */ }
+        }
+        return iso
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    companion object {
+        /** Refresh do painel de previsão (mais lento que o polling normal). */
+        private const val PREVISAO_REFRESH_MS = 60_000L
+    }
 }

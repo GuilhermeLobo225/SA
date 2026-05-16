@@ -153,8 +153,10 @@ h1, h2, h3, h4 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 0 32px;
 }
+.topbar .mobile-menu-btn { margin-right: auto; }
 .topbar .crumbs {
   font-size: 13px;
   color: var(--text-muted);
@@ -610,8 +612,279 @@ h1, h2, h3, h4 {
   margin-top: 4px;
 }
 .sensor-tile .unit { font-size: 11px; color: var(--text-muted); font-family: var(--font-sans); margin-left: 2px; }
+.sensor-tile .trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 1px 8px 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  vertical-align: middle;
+}
+.sensor-tile .trend-delta { font-weight: 500; font-size: 10px; opacity: 0.85; }
+.sensor-tile .trend-good   { background: rgba(47, 138, 62, .12);   color: var(--status-free); }
+.sensor-tile .trend-bad    { background: rgba(154, 24, 24, .12);   color: var(--status-full); }
+.sensor-tile .trend-stable { background: rgba(117, 112, 106, .12); color: var(--text-muted); }
+.sensor-tile .value.value-text {
+  font-size: 18px;          /* texto não-numérico fica mais pequeno */
+  letter-spacing: -0.01em;
+}
+.sensor-tile .sublabel-row {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+.sensor-tile .sublabel {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(168, 0, 31, .07);
+  color: var(--uminho-red-dark);
+  font-weight: 600;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .sensor-tile.alert { background: rgba(196, 77, 47, .10); border-color: rgba(196, 77, 47, .35); }
 .sensor-tile.alert .value { color: var(--status-high); }
+.sensor-tile.alert .sublabel { background: rgba(154, 24, 24, .12); color: var(--status-full); }
+
+/* --- Página "Sobre o sistema" --- */
+.arch-diagram {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.arch-layer {
+  width: 100%;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+.arch-layer h3 {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+}
+.arch-nodes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.arch-node {
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--uminho-red);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.arch-node i  { color: var(--uminho-red); font-size: 18px; margin-bottom: 4px; }
+.arch-node strong { font-size: 13.5px; color: var(--text-strong); }
+.arch-node small  { font-size: 11.5px; color: var(--text-muted); line-height: 1.4; }
+.arch-arrow {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+}
+
+.sensors-table table,
+.team-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.sensors-table th,
+.sensors-table td,
+.team-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.sensors-table th {
+  background: var(--bg-subtle);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.sensors-table tbody tr:last-child td,
+.team-table tbody tr:last-child td { border-bottom: 0; }
+
+.tech-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.tech-card {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+}
+.tech-card strong { display: block; margin-bottom: 6px; color: var(--text-strong); }
+.tech-card ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: var(--text-body);
+  line-height: 1.6;
+}
+
+/* --- Estatísticas do dia (4 linhas iguais por card) --- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  align-items: stretch;          /* cards com a mesma altura */
+}
+.stat-card {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Cabeçalho do card (ícone + título) */
+.stat-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fff;
+  border-bottom: 1px solid var(--border-soft);
+}
+.stat-card-head i {
+  color: var(--uminho-red);
+  font-size: 15px;
+}
+.stat-card-head .stat-card-title {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-strong);
+}
+
+/* As 4 métricas, distribuídas com o MESMO espaço cada */
+.stat-rows {
+  display: grid;
+  grid-template-rows: repeat(4, 1fr);   /* todas iguais */
+  flex: 1;
+}
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(168, 0, 31, 0.06);
+  min-height: 38px;
+}
+.stat-row:last-child { border-bottom: 0; }
+
+.stat-row-key {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.stat-row-value {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.stat-row-unit {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* --- Painel de gráficos --- */
+.chart-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.chart-target-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chart-tab {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-soft);
+  color: var(--text-body);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.chart-tab:hover { background: rgba(168, 0, 31, .06); }
+.chart-tab.active {
+  background: var(--uminho-red);
+  border-color: var(--uminho-red-dark);
+  color: #fff;
+}
+.chart-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.chart-meta .sep { margin: 0 6px; opacity: 0.5; }
+.chart-wrap {
+  position: relative;
+  height: 280px;
+  width: 100%;
+}
+
+/* --- Chip do LED dentro do cartão de ocupação --- */
+.led-chip {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 8px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-soft);
+  font-size: 12.5px;
+  color: var(--text-body);
+  font-family: var(--font-mono);
+}
+.led-chip .led-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--status-unknown);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .8), 0 0 6px currentColor;
+  transition: background .2s;
+}
+.led-chip strong { color: var(--text-strong); font-weight: 600; }
 
 /* --- Cartão de ocupação principal --- */
 .occupancy-hero {
@@ -704,13 +977,100 @@ h1, h2, h3, h4 {
   font-style: italic;
 }
 
-/* responsive */
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+/* Botão de hambúrguer — escondido em desktop */
+.mobile-menu-btn {
+  display: none;
+  background: var(--uminho-red);
+  color: #fff;
+  border: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 90;
+}
+.sidebar-overlay.open { display: block; }
+
+/* Tablet — 1 coluna no detalhe */
 @media (max-width: 920px) {
   .detail-grid { grid-template-columns: 1fr; }
+  .chart-wrap  { height: 240px; }
+  .stats-grid  { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 }
+
+/* Mobile — sidebar como drawer */
 @media (max-width: 720px) {
-  .sidebar { display: none; }
-  .content { padding: 20px; }
-  .book-table { font-size: 12.5px; }
-  .book-table .col-cota, .book-table .col-area { display: none; }
+  .sidebar {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 100;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.2);
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  .main    { width: 100%; }
+  .content { padding: 16px 14px; }
+  .topbar  { padding: 12px 14px; }
+
+  .mobile-menu-btn { display: inline-flex; }
+
+  /* Esconder breadcrumb e user em telemóvel para ganhar espaço */
+  .crumbs { display: none; }
+  .user span { display: none; }
+
+  /* Tipografia mais compacta */
+  .page-title    { font-size: 24px; line-height: 1.2; }
+  .page-subtitle { font-size: 14px; }
+
+  /* Cards e tiles em mobile */
+  .library-grid { grid-template-columns: 1fr; }
+  .sensor-grid  { grid-template-columns: repeat(2, 1fr); }
+  .stats-grid   { grid-template-columns: repeat(2, 1fr); }
+  .tech-grid    { grid-template-columns: 1fr; }
+  .arch-nodes   { grid-template-columns: 1fr; }
+
+  /* Chart mais baixo em mobile */
+  .chart-wrap { height: 220px; }
+  .chart-target-tabs { flex-wrap: wrap; }
+
+  /* Tabela de livros — esconder colunas menos essenciais */
+  .book-table { font-size: 12px; }
+  .book-table .col-cota,
+  .book-table .col-area,
+  .book-table .col-bib { display: none; }
+
+  /* Sensor tile mais compacto */
+  .sensor-tile { padding: 10px 12px; }
+  .sensor-tile .value { font-size: 18px; }
+
+  /* Hero da ocupação empilha em mobile */
+  .occupancy-hero { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .occupancy-ring { width: 80px; height: 80px; }
+
+  /* Painel arquitetura — texto mais pequeno */
+  .arch-layer h3 { font-size: 10px; }
+}
+
+/* Mobile pequeno — 1 coluna em tudo */
+@media (max-width: 460px) {
+  .sensor-grid { grid-template-columns: 1fr; }
+  .stats-grid  { grid-template-columns: 1fr; }
+  .page-title  { font-size: 20px; }
 }

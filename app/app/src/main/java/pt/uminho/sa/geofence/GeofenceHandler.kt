@@ -14,15 +14,12 @@ import com.google.android.gms.location.LocationServices
 import pt.uminho.sa.data.Config
 
 /**
- * Wrapper sobre a Geofencing API da Google (PL8).
+ * Wrapper sobre a Geofencing API da Google.
  *
  * Responsabilidades:
  *   1. Construir a Geofence em si (createGeofence)
  *   2. Construir o GeofencingRequest (getGeofencingRequest)
  *   3. Registar/remover a geofence no GeofencingClient
- *
- * Mantemos as duas primeiras assinaturas exatamente iguais ao que vimos em
- * aula, para defesa fácil.
  */
 class GeofenceHandler(private val context: Context) {
 
@@ -45,7 +42,7 @@ class GeofenceHandler(private val context: Context) {
     }
 
     /* ============================================================
-       Construtores da Geofence — idênticos ao snippet da PL8
+       Construtores da Geofence
        ============================================================ */
 
     fun createGeofence(id: String, lat: Double, lng: Double, radius: Float): Geofence {

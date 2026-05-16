@@ -16,6 +16,7 @@ import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import pt.uminho.sa.R
 import pt.uminho.sa.data.ApiClient
@@ -32,9 +33,13 @@ import pt.uminho.sa.ui.BibliotecaDetalheActivity
  *   3. Aqui consultamos a API para a ocupação atual e disparamos uma
  *      notificação para o utilizador.
  *
- * Esta junção entre Geofencing (PL8) + API REST (PL7) é o que torna a
- * feature útil: o utilizador só recebe um alerta quando está perto da BG,
- * e o alerta já traz informação relevante para decidir se vale a pena entrar.
+ * Esta junção entre geofencing e API REST é o que torna a feature útil:
+ * o utilizador só recebe um alerta quando está perto da BG, e o alerta já
+ * traz informação relevante para decidir se vale a pena entrar.
+ *
+ * Nota técnica: como precisamos de fazer um pedido HTTP a partir do receiver,
+ * usamos `goAsync()` para evitar que o sistema mate o receiver antes da
+ * resposta chegar. Temos cerca de 30 s neste modo.
  */
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
@@ -49,36 +54,40 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         // Pode haver várias geofences disparadas no mesmo evento — tratamos cada uma
         val geofencesAtivadas = event.triggeringGeofences ?: return
+        val transition = event.geofenceTransition
 
-        for (g in geofencesAtivadas) {
-            when (event.geofenceTransition) {
-                Geofence.GEOFENCE_TRANSITION_ENTER -> tratarEntrada(context, g.requestId)
-                Geofence.GEOFENCE_TRANSITION_EXIT  -> tratarSaida(context, g.requestId)
-                else -> { /* DWELL ou outros — não usamos */ }
+        // Mantém o receiver vivo enquanto a corrotina trata todas as transições.
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                for (g in geofencesAtivadas) {
+                    when (transition) {
+                        Geofence.GEOFENCE_TRANSITION_ENTER -> tratarEntrada(context, g.requestId)
+                        Geofence.GEOFENCE_TRANSITION_EXIT  -> tratarSaida(context, g.requestId)
+                        else -> { /* DWELL ou outros — não usamos */ }
+                    }
+                }
+            } finally {
+                pendingResult.finish()
             }
         }
     }
 
     /* ---------- ENTER: vai à API buscar a ocupação e notifica ---------- */
 
-    private fun tratarEntrada(context: Context, geofenceId: String) {
-        // Por enquanto só temos a BG, mas o código está pronto para outras
+    private suspend fun tratarEntrada(context: Context, geofenceId: String) {
         if (geofenceId != Config.BG_GEOFENCE_ID) return
         val biblio = AssetLoader.findBiblioteca(context, "bg") ?: return
 
-        // Corrotina em escopo IO para fazer o pedido HTTP sem bloquear a thread
-        // do BroadcastReceiver (que tem ~10 s antes do sistema a matar).
-        CoroutineScope(Dispatchers.IO).launch {
-            val dados = ApiClient.fetchRoom(biblio.apiRoomId ?: biblio.id)
-            val pct = (dados.occupancyPct * 100).toInt()
+        val dados = ApiClient.fetchRoom(biblio.apiRoomId ?: biblio.id)
+        val pct = (dados.occupancyPct * 100).toInt()
 
-            val titulo = context.getString(R.string.geofence_enter_title, biblio.nome)
-            val texto  = context.getString(
-                R.string.geofence_enter_msg,
-                dados.count, dados.capacity, pct
-            )
-            mostrarNotificacao(context, biblio.id, titulo, texto, NOTIF_ID_ENTER)
-        }
+        val titulo = context.getString(R.string.geofence_enter_title, biblio.nome)
+        val texto  = context.getString(
+            R.string.geofence_enter_msg,
+            dados.count, dados.capacity, pct
+        )
+        mostrarNotificacao(context, biblio.id, titulo, texto, NOTIF_ID_ENTER)
     }
 
     /* ---------- EXIT: notificação simples de despedida ---------- */

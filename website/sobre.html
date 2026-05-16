@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sobre o sistema — Portal UMinho</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ===================== Sidebar ===================== -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="logo.png" alt="Universidade do Minho">
+    </div>
+    <div class="sidebar-header">
+      <h2>Bibliotecas UMinho</h2>
+      <p>Serviço de Documentação e Bibliotecas</p>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="index.html"            class="sidebar-link"><i class="fa-solid fa-building-columns"></i>Bibliotecas</a>
+      <a href="index.html#catalogo"    class="sidebar-link"><i class="fa-solid fa-magnifying-glass"></i>Catálogo</a>
+      <a href="#"                      class="sidebar-link"><i class="fa-solid fa-book-open"></i>Biblioteca Digital</a>
+      <a href="#"                      class="sidebar-link"><i class="fa-solid fa-handshake"></i>Serviços</a>
+      <a href="sobre.html"             class="sidebar-link active"><i class="fa-solid fa-circle-info"></i>Sobre o sistema</a>
+      <a href="#"                      class="sidebar-link"><i class="fa-solid fa-right-to-bracket"></i>Minha conta</a>
+    </nav>
+    <div class="sidebar-footer">© UMinho · SDUM</div>
+  </aside>
+
+  <!-- ===================== Main ===================== -->
+  <main class="main">
+
+    <header class="topbar">
+      <button class="mobile-menu-btn" aria-label="Abrir menu">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <div class="crumbs">
+        <a href="index.html">Portal</a>
+        <span class="sep">/</span>
+        <span class="current">Sobre o sistema</span>
+      </div>
+      <div class="user">
+        <span>Utilizador</span>
+        <i class="fa-solid fa-circle-user"></i>
+      </div>
+    </header>
+
+    <section class="content">
+
+      <div class="page-header">
+        <div>
+          <div class="page-eyebrow">Sensorização e Ambiente · MIA · UMinho 2025/26</div>
+          <h1 class="page-title">Sala de Estudo Inteligente</h1>
+          <p class="page-subtitle">
+            Sistema distribuído de baixo custo para monitorização de ocupação e
+            conforto ambiental em salas de estudo universitárias. Baseado em
+            ESP32, YOLOv11x e sensores IoT, com previsão de série temporal
+            recente. Sistema-piloto instalado na Biblioteca Geral de Gualtar.
+          </p>
+        </div>
+      </div>
+
+      <!-- ===== Arquitetura ===== -->
+      <div class="panel">
+        <h2><i class="fa-solid fa-diagram-project"></i>Arquitetura</h2>
+        <p style="font-size: 13px; color: var(--text-muted); margin: -6px 0 16px;">
+          Três camadas independentes que comunicam apenas pelo Firebase. Cada
+          peça pode falhar isoladamente sem derrubar o sistema todo.
+        </p>
+
+        <div class="arch-diagram">
+
+          <!-- Camada sensorização -->
+          <div class="arch-layer">
+            <h3>Camada de sensorização</h3>
+            <div class="arch-nodes">
+              <div class="arch-node">
+                <i class="fa-solid fa-camera"></i>
+                <strong>Vision Node</strong>
+                <small>ESP32-CAM AI-Thinker · OV2640</small>
+                <small>Captura SVGA a cada 15 s</small>
+              </div>
+              <div class="arch-node">
+                <i class="fa-solid fa-microchip"></i>
+                <strong>Sensor Node</strong>
+                <small>ESP32-S3 DevKitC-1</small>
+                <small>DHT11 · MQ-135 · LM393 · MSM261 I2S</small>
+                <small>LED semáforo (R/Y/G)</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="arch-arrow">↓ Wi-Fi 2.4 GHz</div>
+
+          <!-- Camada cloud -->
+          <div class="arch-layer">
+            <h3>Camada de armazenamento (Firebase)</h3>
+            <div class="arch-nodes">
+              <div class="arch-node">
+                <i class="fa-solid fa-image"></i>
+                <strong>Vision Project</strong>
+                <small>Storage: imagens JPEG (privacy by design)</small>
+                <small>RTDB: latest_image, last_capture</small>
+              </div>
+              <div class="arch-node">
+                <i class="fa-solid fa-database"></i>
+                <strong>Sensor Project</strong>
+                <small>RTDB: environment, occupancy</small>
+                <small>Histórico push contínuo</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="arch-arrow">↓ Firebase Admin SDK</div>
+
+          <!-- Camada processamento -->
+          <div class="arch-layer">
+            <h3>Camada de processamento (PC local)</h3>
+            <div class="arch-nodes">
+              <div class="arch-node">
+                <i class="fa-solid fa-brain"></i>
+                <strong>detector.py</strong>
+                <small>YOLOv11x (109 MB) — pessoas + mobília</small>
+                <small>Thresholds per-class · Loop 5s</small>
+              </div>
+              <div class="arch-node">
+                <i class="fa-solid fa-chart-line"></i>
+                <strong>forecast_service.py</strong>
+                <small>Holt-Winters (sazonal) → SES → Naive</small>
+                <small>1h adiante a cada chamada</small>
+              </div>
+              <div class="arch-node">
+                <i class="fa-solid fa-server"></i>
+                <strong>api.py (Flask)</strong>
+                <small>REST · 5 endpoints · CORS</small>
+                <small>5/3 estados de ocupação</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="arch-arrow">↓ HTTP localhost:5000</div>
+
+          <!-- Camada apresentação -->
+          <div class="arch-layer">
+            <h3>Camada de apresentação</h3>
+            <div class="arch-nodes">
+              <div class="arch-node">
+                <i class="fa-solid fa-globe"></i>
+                <strong>Dashboard Web</strong>
+                <small>HTML/CSS/JS · Chart.js · Mock fallback</small>
+              </div>
+              <div class="arch-node">
+                <i class="fa-solid fa-mobile"></i>
+                <strong>App Android</strong>
+                <small>Kotlin · Mesma API</small>
+              </div>
+              <div class="arch-node">
+                <i class="fa-solid fa-traffic-light"></i>
+                <strong>LED na sala</strong>
+                <small>Sensor_NODE lê status a cada 5 s</small>
+                <small>Verde · Amarelo · Vermelho</small>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ===== Sensores ===== -->
+      <div class="panel" style="margin-top: 20px;">
+        <h2><i class="fa-solid fa-microchip"></i>Sensores do nó ambiental</h2>
+        <div class="sensors-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Sensor</th>
+                <th>Medição</th>
+                <th>Interface</th>
+                <th>GPIO</th>
+                <th>Notas</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>DHT11</strong></td>
+                <td>Temperatura, humidade</td>
+                <td>1-wire digital</td>
+                <td>4</td>
+                <td>±2 °C / ±5 %; pull-up no módulo</td>
+              </tr>
+              <tr>
+                <td><strong>MQ-135</strong></td>
+                <td>Qualidade do ar (VOCs, CO₂)</td>
+                <td>ADC 12-bit (analógico)</td>
+                <td>5</td>
+                <td>Alimentado a 5 V; divisor de tensão 10k+10k para 3.3 V</td>
+              </tr>
+              <tr>
+                <td><strong>LM393</strong> (fotodíodo)</td>
+                <td>Iluminância</td>
+                <td>ADC analógico + digital</td>
+                <td>6, 7</td>
+                <td>ADC inverso — menor = mais luz</td>
+              </tr>
+              <tr>
+                <td><strong>MSM261S4030H0</strong></td>
+                <td>Ruído (nível RMS em dB rel.)</td>
+                <td>I2S MEMS digital 24-bit</td>
+                <td>13, 14, 15</td>
+                <td>SEL→GND (canal esquerdo); 3.3 V apenas</td>
+              </tr>
+              <tr>
+                <td><strong>LED Vermelho</strong></td>
+                <td>Indicador "cheio"</td>
+                <td>PWM digital</td>
+                <td>16</td>
+                <td>220 Ω em série; cátodo a GND</td>
+              </tr>
+              <tr>
+                <td><strong>LED Amarelo</strong></td>
+                <td>Indicador "parcial"</td>
+                <td>PWM digital</td>
+                <td>17</td>
+                <td>idem</td>
+              </tr>
+              <tr>
+                <td><strong>LED Verde</strong></td>
+                <td>Indicador "livre"</td>
+                <td>PWM digital</td>
+                <td>18</td>
+                <td>idem</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== Stack tecnológico ===== -->
+      <div class="panel" style="margin-top: 20px;">
+        <h2><i class="fa-solid fa-cubes"></i>Stack tecnológico</h2>
+        <div class="tech-grid">
+          <div class="tech-card">
+            <strong>Firmware</strong>
+            <ul>
+              <li>Arduino framework para ESP32 (PlatformIO)</li>
+              <li>Firebase ESP Client (mobizt)</li>
+              <li>DHT sensor library (Adafruit)</li>
+              <li>ESP-IDF i2s driver (microfone MEMS)</li>
+            </ul>
+          </div>
+          <div class="tech-card">
+            <strong>Processamento (PC)</strong>
+            <ul>
+              <li>Python 3.11+, PyTorch (CPU)</li>
+              <li>Ultralytics YOLOv11x</li>
+              <li>OpenCV, NumPy, Pandas</li>
+              <li>statsmodels (Holt-Winters, SES)</li>
+              <li>Flask + flask-cors (API)</li>
+              <li>firebase-admin (Storage + RTDB)</li>
+            </ul>
+          </div>
+          <div class="tech-card">
+            <strong>Frontend Web</strong>
+            <ul>
+              <li>HTML5, CSS3 puro</li>
+              <li>JS vanilla (sem framework)</li>
+              <li>Chart.js 4 + adaptador date-fns</li>
+              <li>Font Awesome 6 (ícones)</li>
+              <li>Tipografia Source Serif + Source Sans</li>
+            </ul>
+          </div>
+          <div class="tech-card">
+            <strong>Cloud</strong>
+            <ul>
+              <li>2 × Firebase Project (Vision + Sensor)</li>
+              <li>Realtime Database (europe-west1)</li>
+              <li>Cloud Storage (privacy by design)</li>
+              <li>Authentication Email/Password</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Componente preditivo ===== -->
+      <div class="panel" style="margin-top: 20px;">
+        <h2><i class="fa-solid fa-chart-area"></i>Componente preditivo</h2>
+        <p style="font-size: 14px; margin: 0 0 12px;">
+          O serviço de forecasting escolhe automaticamente o modelo mais
+          sofisticado que os dados disponíveis permitem:
+        </p>
+        <ol style="margin: 0 0 12px 18px; padding: 0; line-height: 1.7;">
+          <li><strong>Holt-Winters</strong> aditivo com sazonalidade diária
+            (1440 minutos) — requer ≥ 2 dias de histórico</li>
+          <li><strong>Simple Exponential Smoothing</strong> + tendência local —
+            funciona com ≥ 15 minutos</li>
+          <li><strong>Naive</strong> (repete último valor) — fallback honesto
+            quando não há dados</li>
+        </ol>
+        <p style="font-size: 13.5px; color: var(--text-muted); margin: 0;">
+          O notebook em <code>processing/ml/</code> contém também uma
+          comparação com <strong>LSTM</strong> (PyTorch) para análise offline.
+          Previsão de ocupação está marcada como trabalho futuro (requer
+          semanas de histórico real).
+        </p>
+      </div>
+
+      <!-- ===== Equipa ===== -->
+      <div class="panel" style="margin-top: 20px;">
+        <h2><i class="fa-solid fa-users"></i>Equipa</h2>
+        <table class="team-table">
+          <tbody>
+            <tr><td>Luís Miguel Pereira Silva</td><td>PG60390</td><td>pg60390@alunos.uminho.pt</td></tr>
+            <tr><td>Pedro Miguel S. A. Urbano dos Reis</td><td>PG59908</td><td>pg59908@alunos.uminho.pt</td></tr>
+            <tr><td>Guilherme Lobo Pinto</td><td>PG60225</td><td>pg60225@alunos.uminho.pt</td></tr>
+            <tr><td>Pedro Alexandre Silva Gomes</td><td>PG60289</td><td>pg60289@alunos.uminho.pt</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </section>
+
+    <footer class="site-footer">
+      <strong>Sala de Estudo Inteligente</strong> · Sensorização e Ambiente · MIA · UMinho 2025/26
+      <div class="authors">
+        Luís Silva &nbsp;·&nbsp; Pedro Reis &nbsp;·&nbsp; Guilherme Pinto &nbsp;·&nbsp; Pedro Gomes
+      </div>
+    </footer>
+
+  </main>
+
+</div>
+
+<div class="sidebar-overlay" aria-hidden="true"></div>
+<script src="js/mobile-nav.js"></script>
+
+</body>
+</html>

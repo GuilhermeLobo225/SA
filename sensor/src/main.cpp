@@ -78,17 +78,22 @@
 #define I2S_SAMPLE_RATE 16000
 #define I2S_READ_SAMPLES 1024   // janela de amostras para cálculo de RMS
 
-// LED RGB cátodo comum (PWM)
-#define LED_R_PIN   16
-#define LED_G_PIN   17
-#define LED_B_PIN   18
+// LEDs do indicador de ocupação (estilo semáforo — 3 LEDs separados)
+//   GPIO 16 → VERMELHO  (cheio)
+//   GPIO 17 → AMARELO   (parcial)
+//   GPIO 18 → VERDE     (livre)
+// Cada LED tem o cátodo a GND (com resistência 220 Ω em série), por isso
+// HIGH no GPIO acende, LOW apaga.
+#define LED_RED_PIN     16
+#define LED_YELLOW_PIN  17
+#define LED_GREEN_PIN   18
 
-// Canais PWM (LEDC)
-#define PWM_FREQ    5000
-#define PWM_RES     8
-#define CH_R        0
-#define CH_G        1
-#define CH_B        2
+// Canais PWM (LEDC) — usamos PWM para podermos dimmar se quisermos
+#define PWM_FREQ        5000
+#define PWM_RES         8
+#define CH_RED          0
+#define CH_YELLOW       1
+#define CH_GREEN        2
 
 // ======================== LIMIARES ========================
 // Temperatura confortável (ASHRAE 55)
@@ -180,10 +185,27 @@ float readNoiseDBFS() {
 }
 
 // ======================== UTILIDADES ========================
-void setLED(uint8_t r, uint8_t g, uint8_t b) {
-  ledcWrite(CH_R, r);
-  ledcWrite(CH_G, g);
-  ledcWrite(CH_B, b);
+// Liga/desliga cada um dos 3 LEDs do semáforo de forma independente.
+// Cada valor é 0–255 (PWM), permitindo dimmar se for útil.
+void setOccLED(uint8_t red, uint8_t yellow, uint8_t green) {
+  ledcWrite(CH_RED,    red);
+  ledcWrite(CH_YELLOW, yellow);
+  ledcWrite(CH_GREEN,  green);
+}
+
+// Wrapper retro-compatível: a função antiga `setLED(r,g,b)` mapeava cores
+// para um LED RGB. Como agora temos 3 LEDs separados, mapeamos cores
+// "lógicas" para o LED correspondente do semáforo:
+//   - se ambos R e G ligados → amarelo → AMARELO
+//   - só R → VERMELHO
+//   - só G → VERDE
+//   - tudo a 0 → tudo apagado
+// (O canal B é ignorado — não temos LED azul.)
+void setLED(uint8_t r, uint8_t g, uint8_t /*b*/) {
+  if (r > 0 && g > 0)     setOccLED(0, 255, 0);     // amarelo
+  else if (r > 0)         setOccLED(255, 0, 0);     // vermelho
+  else if (g > 0)         setOccLED(0, 0, 255);     // verde
+  else                    setOccLED(0, 0, 0);       // tudo apagado
 }
 
 String getTimestamp() {
@@ -256,15 +278,16 @@ void updateLEDFromComfort(const String& comfort) {
   else                            setLED(255, 0, 0);    // Vermelho
 }
 
-// Atualiza o LED RGB conforme o estado de ocupação vindo do Firebase:
-//   "livre"   → verde   (pelo menos uma mesa livre)
-//   "parcial" → amarelo (mesas todas ocupadas mas cadeiras livres)
-//   "cheio"   → vermelho (cadeiras todas ocupadas)
+// Atualiza o semáforo conforme o estado de ocupação vindo do Firebase:
+//   "livre"   → verde     (pelo menos uma mesa livre)
+//   "parcial" → amarelo   (mesas todas ocupadas mas cadeiras livres)
+//   "cheio"   → vermelho  (cadeiras todas ocupadas)
+//   outro     → amarelo a baixa intensidade (à espera de dados)
 void updateLEDFromOccupancy(const String& status) {
-  if (status == "livre")        setLED(0, 255, 0);
-  else if (status == "parcial") setLED(255, 180, 0);
-  else if (status == "cheio")   setLED(255, 0, 0);
-  else                          setLED(0, 0, 64);   // azul ténue = sem dados ainda
+  if (status == "livre")        setOccLED(0,   0,   255);   // verde
+  else if (status == "parcial") setOccLED(0,   255, 0);     // amarelo
+  else if (status == "cheio")   setOccLED(255, 0,   0);     // vermelho
+  else                          setOccLED(0,   40,  0);     // amarelo ténue (sem dados)
 }
 
 // Lê rooms/<ROOM_ID>/occupancy/status do Firebase e pinta o LED.
@@ -371,14 +394,20 @@ void setup() {
   // I2S microfone
   i2sMicInit();
 
-  // LED RGB
-  ledcSetup(CH_R, PWM_FREQ, PWM_RES);
-  ledcSetup(CH_G, PWM_FREQ, PWM_RES);
-  ledcSetup(CH_B, PWM_FREQ, PWM_RES);
-  ledcAttachPin(LED_R_PIN, CH_R);
-  ledcAttachPin(LED_G_PIN, CH_G);
-  ledcAttachPin(LED_B_PIN, CH_B);
-  setLED(0, 0, 255); // Azul = a arrancar
+  // Semáforo (3 LEDs: vermelho, amarelo, verde)
+  ledcSetup(CH_RED,    PWM_FREQ, PWM_RES);
+  ledcSetup(CH_YELLOW, PWM_FREQ, PWM_RES);
+  ledcSetup(CH_GREEN,  PWM_FREQ, PWM_RES);
+  ledcAttachPin(LED_RED_PIN,    CH_RED);
+  ledcAttachPin(LED_YELLOW_PIN, CH_YELLOW);
+  ledcAttachPin(LED_GREEN_PIN,  CH_GREEN);
+
+  // Sequência de arranque — acende cada LED 200 ms para confirmar wiring.
+  // Vais ver: vermelho → amarelo → verde, na ordem das pernas.
+  setOccLED(255, 0, 0); delay(200);
+  setOccLED(0, 255, 0); delay(200);
+  setOccLED(0, 0, 255); delay(200);
+  setOccLED(0,  40, 0);  // amarelo ténue = à espera do 1.º status
 
   // Wi-Fi
   connectWiFi();
@@ -413,7 +442,7 @@ void setup() {
   firebaseReady = Firebase.ready();
   Serial.printf("[Firebase] %s\n", firebaseReady ? "Pronto." : "Sem autenticação (continua em modo local).");
 
-  setLED(0, 0, 64); // Azul ténue = pronto, à espera do 1.º status de ocupação
+  setOccLED(0, 40, 0); // Amarelo ténue = pronto, à espera do 1.º status de ocupação
   delay(500);
 }
 

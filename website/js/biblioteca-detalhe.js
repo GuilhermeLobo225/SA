@@ -11,6 +11,55 @@
 let _meta       = null;
 let _libObj     = null;
 let _pollTimer  = null;
+let _chart       = null;
+let _chartTarget = "temperature";
+let _chartUnit   = "";       // mantido sempre sincronizado com o último fetch
+let _chartTimer  = null;
+let _prev       = {};   // últimas leituras para calcular tendência
+
+/* Limiares percentuais (do valor anterior) abaixo dos quais a tendência
+   é considerada "estável" — evita setas a tremer com micro-flutuações. */
+const TREND_THRESHOLDS = {
+  temperature: 0.005,   // 0.5%
+  humidity:    0.01,    // 1%
+  air_quality: 0.03,    // 3%
+  light:       0.05,    // 5%  (LM393 oscila mais)
+  noise_db:    0.02,    // 2%
+  people:      0,       // qualquer mudança em pessoas é significativa
+};
+
+/* Para sinais "inversos" (menor = melhor): se sobe, é PIOR.
+   Usado só na cor da seta (semantic), não na direção da seta. */
+const INVERSE_SIGNALS = new Set(["air_quality", "light", "noise_db"]);
+
+/* Devolve {arrow, delta, cls} comparando valor atual com leitura anterior. */
+function trendOf(key, current) {
+  const prev = _prev[key];
+  if (current == null || prev == null || isNaN(prev) || isNaN(current)) {
+    return { arrow: "→", delta: null, cls: "trend-stable" };
+  }
+  const delta = current - prev;
+  const thr   = (TREND_THRESHOLDS[key] ?? 0.02) * Math.max(Math.abs(prev), 1);
+  if (Math.abs(delta) < thr) return { arrow: "→", delta, cls: "trend-stable" };
+  const up = delta > 0;
+  // Se sinal inverso, "subir" é mau → vermelho mesmo apontando para cima
+  const isBad = INVERSE_SIGNALS.has(key) ? up : false;
+  return {
+    arrow: up ? "↗" : "↘",
+    delta,
+    cls: isBad ? "trend-bad" : "trend-good",
+  };
+}
+
+function formatDelta(key, delta) {
+  if (delta == null) return "";
+  const sign = delta > 0 ? "+" : "";
+  if (key === "temperature") return `${sign}${delta.toFixed(1)}°`;
+  if (key === "humidity")    return `${sign}${Math.round(delta)}%`;
+  if (key === "noise_db")    return `${sign}${delta.toFixed(1)} dB`;
+  if (key === "people")      return `${sign}${Math.round(delta)}`;
+  return `${sign}${Math.round(delta)}`;
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
   const params = new URLSearchParams(window.location.search);
@@ -37,12 +86,241 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (_libObj.sensorizacao) {
     await refreshSensorData();
     _pollTimer = setInterval(refreshSensorData, SDB.REFRESH_INTERVAL);
+
+    // Charts: render inicial + refresh ~1 min (mais lento que sensores)
+    setupChartTabs();
+    await refreshChart();
+    _chartTimer = setInterval(refreshChart, 60000);
+
+    // Stats: render inicial + refresh ~1 min
+    await refreshStats();
+    setInterval(refreshStats, 60000);
   }
 });
 
 window.addEventListener("beforeunload", () => {
-  if (_pollTimer) clearInterval(_pollTimer);
+  if (_pollTimer)  clearInterval(_pollTimer);
+  if (_chartTimer) clearInterval(_chartTimer);
 });
+
+/* ============================================================
+   Charts (histórico + previsão)
+   ============================================================ */
+function setupChartTabs() {
+  const tabs = document.getElementById("chart-target-tabs");
+  if (!tabs) return;
+  tabs.addEventListener("click", e => {
+    const btn = e.target.closest(".chart-tab");
+    if (!btn) return;
+    tabs.querySelectorAll(".chart-tab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    _chartTarget = btn.dataset.target;
+    refreshChart();
+  });
+}
+
+async function refreshChart() {
+  const roomId = _libObj.api_room_id || _libObj.id;
+  const data   = await SDB.fetchHistory(roomId, _chartTarget, 4, 60);
+
+  // Atualiza meta
+  const labels = {
+    "holt-winters": "Holt-Winters (sazonal)",
+    "exponential": "Suavização exponencial",
+    "naive":       "Naive (último valor)",
+    "n/a":         "Previsão — trabalho futuro",
+    "mock-sinusoidal": "Demo (mock)",
+  };
+  document.getElementById("chart-model").textContent  = labels[data.model] || data.model;
+  document.getElementById("chart-source").textContent =
+    data._source === "api" ? "Dados ao vivo" : "Modo demo";
+
+  // Mantém a unidade atual no escopo do módulo para os callbacks do tooltip
+  // (que se mantêm vivos depois de switchar de tab sem recriar o chart).
+  _chartUnit = data.unit || "";
+
+  // Constrói datasets — uma linha sólida (histórico) e uma tracejada (forecast)
+  const histPts = data.history.map(p  => ({ x: new Date(p.t), y: p.v }));
+  const fcPts   = data.forecast.map(p => ({ x: new Date(p.t), y: p.v }));
+
+  // Conecta visualmente as duas linhas no ponto "agora"
+  if (histPts.length && fcPts.length) {
+    fcPts.unshift({ x: histPts[histPts.length - 1].x, y: histPts[histPts.length - 1].y });
+  }
+
+  const datasets = [
+    {
+      label: "Histórico",
+      data: histPts,
+      borderColor: "#A8001F",
+      backgroundColor: "rgba(168, 0, 31, .08)",
+      borderWidth: 2,
+      tension: 0.25,
+      pointRadius: 0,
+      fill: true,
+    },
+  ];
+  if (fcPts.length > 0) {
+    datasets.push({
+      label: "Previsão (próxima hora)",
+      data: fcPts,
+      borderColor: "#005A9C",
+      backgroundColor: "rgba(0, 90, 156, .05)",
+      borderWidth: 2,
+      borderDash: [6, 4],
+      tension: 0.25,
+      pointRadius: 0,
+      fill: false,
+    });
+  }
+
+  if (_chart) {
+    _chart.data.datasets = datasets;
+    _chart.options.scales.y.title.text = `${prettyTarget(_chartTarget)} (${_chartUnit})`;
+    _chart.update("none");
+    return;
+  }
+
+  const ctx = document.getElementById("history-chart").getContext("2d");
+  _chart = new Chart(ctx, {
+    type: "line",
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "nearest", intersect: false },
+      plugins: {
+        legend: { position: "bottom", labels: { boxWidth: 12, padding: 12 } },
+        tooltip: {
+          callbacks: {
+            title: items => new Date(items[0].parsed.x).toLocaleTimeString("pt-PT"),
+            // Usa a unidade ATUAL (módulo) — atualiza ao trocar de tab.
+            label: it => `${it.dataset.label}: ${it.parsed.y.toFixed(1)} ${_chartUnit}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: "time",
+          time: { unit: "minute", tooltipFormat: "HH:mm", displayFormats: { minute: "HH:mm" } },
+          ticks: { maxRotation: 0, autoSkipPadding: 16 },
+          grid: { color: "rgba(0,0,0,.06)" },
+        },
+        y: {
+          title: { display: true, text: `${prettyTarget(_chartTarget)} (${_chartUnit})` },
+          grid: { color: "rgba(0,0,0,.06)" },
+        },
+      },
+    },
+  });
+}
+
+function prettyTarget(t) {
+  return ({
+    temperature: "Temperatura",
+    humidity:    "Humidade",
+    air_quality: "Qualidade do ar",
+    light:       "Iluminância",
+    noise_db:    "Ruído",
+    people:      "Pessoas",
+  })[t] || t;
+}
+
+/* ============================================================
+   Estatísticas do dia — 4 métricas por sensor (média, mediana, máx, mín)
+   ============================================================ */
+async function refreshStats() {
+  const roomId = _libObj.api_room_id || _libObj.id;
+  const s      = await SDB.fetchStats(roomId, 24);
+  const grid   = document.getElementById("stats-grid");
+  if (!grid) return;
+
+  // Para cada categoria, define unidade e métricas (média/mediana/máx/mín).
+  // Ocupação tem "Pico" em vez de "Máx." para combinar melhor com a UX.
+  const cards = [
+    {
+      icon: "fa-users",
+      label: "Ocupação",
+      // Para a ocupação faz mais sentido mostrar a fracção do dia em cada
+      // estado (categorias livre/parcial/cheio) — média/mediana de "número de
+      // pessoas" não captura bem a experiência da sala.
+      rows: [
+        { k: "🟢 Livre",   v: s.occupancy?.pct_livre,   unit: "%"      },
+        { k: "🟡 Parcial", v: s.occupancy?.pct_parcial, unit: "%"      },
+        { k: "🔴 Cheio",   v: s.occupancy?.pct_cheio,   unit: "%"      },
+        { k: "Pico",       v: s.occupancy?.peak,        unit: "pessoas"},
+      ],
+    },
+    {
+      icon: "fa-temperature-half",
+      label: "Temperatura",
+      unit:  "°C",
+      rows: [
+        { k: "Média",   v: s.temperature?.avg    },
+        { k: "Mediana", v: s.temperature?.median },
+        { k: "Máximo",  v: s.temperature?.max    },
+        { k: "Mínimo",  v: s.temperature?.min    },
+      ],
+    },
+    {
+      icon: "fa-droplet",
+      label: "Humidade",
+      unit:  "%",
+      rows: [
+        { k: "Média",   v: s.humidity?.avg    },
+        { k: "Mediana", v: s.humidity?.median },
+        { k: "Máximo",  v: s.humidity?.max    },
+        { k: "Mínimo",  v: s.humidity?.min    },
+      ],
+    },
+    {
+      icon: "fa-wind",
+      label: "Qualidade do ar",
+      unit:  "ADC",
+      rows: [
+        { k: "Média",   v: s.air_quality?.avg    },
+        { k: "Mediana", v: s.air_quality?.median },
+        { k: "Máximo",  v: s.air_quality?.max    },
+        { k: "Mínimo",  v: s.air_quality?.min    },
+      ],
+    },
+    {
+      icon: "fa-volume-low",
+      label: "Ruído",
+      unit:  "dB",
+      rows: [
+        { k: "Média",   v: s.noise_db?.avg    },
+        { k: "Mediana", v: s.noise_db?.median },
+        { k: "Máximo",  v: s.noise_db?.max    },
+        { k: "Mínimo",  v: s.noise_db?.min    },
+      ],
+    },
+  ];
+
+  grid.innerHTML = cards.map(c => `
+    <div class="stat-card">
+      <div class="stat-card-head">
+        <i class="fa-solid ${c.icon}"></i>
+        <div class="stat-card-title">${c.label}</div>
+      </div>
+      <div class="stat-rows">
+        ${c.rows.map(r => {
+          // Cada linha pode ter sua própria unidade (ex.: ocupação mistura % e
+          // "pessoas"); cai para a unidade do card se não vier definida.
+          const unit = (r.unit !== undefined) ? r.unit : c.unit;
+          return `
+            <div class="stat-row">
+              <span class="stat-row-key">${r.k}</span>
+              <span class="stat-row-value">
+                ${r.v != null ? r.v : "—"}<span class="stat-row-unit">${r.v != null && unit ? " " + unit : ""}</span>
+              </span>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `).join("");
+}
 
 /* ============================================================
    Render shell — estrutura HTML estática da página
@@ -131,6 +409,10 @@ function renderSensorBlock() {
           </div>
           <div class="status-name" id="status-name">—</div>
           <div class="seats" id="seats-text">—</div>
+          <div class="led-chip" id="led-chip" title="Estado simplificado consumido pelo LED RGB do nó ambiental">
+            <span class="led-dot" id="led-dot"></span>
+            <span>LED: <strong id="led-state">—</strong></span>
+          </div>
         </div>
       </div>
 
@@ -155,6 +437,48 @@ function renderSensorBlock() {
         <span><span class="legend-swatch" style="background: rgba(47,138,62,.15); border-color: var(--uminho-red);"></span>Monitorizada</span>
         <span><span class="legend-swatch" style="background: rgba(214,162,22,.25); border-color: var(--uminho-red);"></span>Ocupação média</span>
         <span><span class="legend-swatch" style="background: rgba(154,24,24,.32); border-color: var(--uminho-red);"></span>Ocupação alta</span>
+      </div>
+    </div>
+
+    <!-- Histórico + previsão -->
+    <div class="panel" style="margin-top: 20px;">
+      <h2><i class="fa-solid fa-chart-line"></i>Evolução temporal & previsão</h2>
+      <p style="font-size: 13px; color: var(--text-muted); margin: -6px 0 12px;">
+        Linha sólida: histórico real recolhido pelos nós. Linha tracejada:
+        previsão para a próxima hora, calculada na API a partir do histórico
+        (Holt-Winters quando há ≥ 2 dias de dados; suavização exponencial caso
+        contrário).
+      </p>
+
+      <div class="chart-controls">
+        <div class="chart-target-tabs" id="chart-target-tabs">
+          <button class="chart-tab active" data-target="temperature">Temperatura</button>
+          <button class="chart-tab"        data-target="humidity">Humidade</button>
+          <button class="chart-tab"        data-target="air_quality">Qualidade do ar</button>
+          <button class="chart-tab"        data-target="noise_db">Ruído</button>
+          <button class="chart-tab"        data-target="people">Ocupação</button>
+        </div>
+        <div class="chart-meta">
+          <span id="chart-model">—</span>
+          <span class="sep">·</span>
+          <span id="chart-source">—</span>
+        </div>
+      </div>
+
+      <div class="chart-wrap">
+        <canvas id="history-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Estatísticas do dia -->
+    <div class="panel" style="margin-top: 20px;">
+      <h2><i class="fa-solid fa-chart-pie"></i>Estatísticas das últimas 24h</h2>
+      <p style="font-size: 13px; color: var(--text-muted); margin: -6px 0 12px;">
+        Métricas agregadas a partir do histórico do Firebase. Atualiza a cada
+        minuto.
+      </p>
+      <div class="stats-grid" id="stats-grid">
+        <div class="loading">A calcular estatísticas…</div>
       </div>
     </div>
 
@@ -221,6 +545,21 @@ function paintOccupancy(d) {
   document.getElementById("ring-pct").textContent  = `${Math.round(pct * 100)}%`;
   document.getElementById("status-name").textContent = SDB.statusLabel(d.status);
   document.getElementById("seats-text").textContent  = `${d.count} de ${cap} lugares ocupados na zona monitorizada`;
+
+  /* Chip do LED — mostra o estado simplificado (3 níveis) que o firmware lê. */
+  const simple = d.status_simple || "—";
+  const ledLabel = ({
+    livre:   "Livre",
+    parcial: "Parcial",
+    cheio:   "Cheio",
+  })[simple] || "—";
+  const ledColors = {
+    livre:   "var(--status-free)",
+    parcial: "var(--status-mid)",
+    cheio:   "var(--status-full)",
+  };
+  document.getElementById("led-state").textContent = ledLabel;
+  document.getElementById("led-dot").style.background = ledColors[simple] || "var(--status-unknown)";
 }
 
 function paintZone(d) {
@@ -256,56 +595,112 @@ function paintZone(d) {
 }
 
 function paintSensors(d) {
-  /* Limiares definidos no README do projeto (ASHRAE 55, OMS, EN 12464-1) */
+  /* Privilegia a classe textual da API ("bom"/"moderado"/"mau"/...) para
+     decidir alertas; cai para limiares numéricos só quando a classe não existe. */
+  const isBadClass = c => ["mau", "elevado", "muito_elevado",
+                            "necessita_ventilacao", "insuficiente", "escuro"].includes(c);
+
+  const subFor = (cls, fallback = "") =>
+    cls ? `<span class="sublabel">${formatClass(cls)}</span>` : fallback;
+
   const tiles = [
     {
+      key: "temperature",
       icon: "fa-temperature-half",
       label: "Temperatura",
-      value: d.temperature?.toFixed(1) ?? "—",
+      value: d.temperature != null ? d.temperature.toFixed(1) : "—",
+      raw:   d.temperature,
       unit:  "°C",
-      alert: d.temperature != null && (d.temperature < 20 || d.temperature > 26)
+      sub:   "ASHRAE 55: 20–26",
+      alert: d.temperature != null && (d.temperature < 20 || d.temperature > 26),
     },
     {
+      key: "humidity",
       icon: "fa-droplet",
       label: "Humidade",
       value: d.humidity != null ? Math.round(d.humidity) : "—",
+      raw:   d.humidity,
       unit:  "%",
-      alert: d.humidity != null && (d.humidity < 30 || d.humidity > 70)
+      sub:   "Confort.: 30–70",
+      alert: d.humidity != null && (d.humidity < 30 || d.humidity > 70),
     },
     {
+      key: "air_quality",
       icon: "fa-wind",
       label: "Qualidade do ar",
       value: d.air_quality ?? "—",
-      unit:  "(MQ-135)",
-      alert: d.air_quality != null && d.air_quality > 400
+      raw:   d.air_quality,
+      unit:  "ADC (MQ-135)",
+      sub:   subFor(d.air_quality_class, "Calibração empírica"),
+      alert: isBadClass(d.air_quality_class)
+              || (d.air_quality != null && d.air_quality > 2500),
     },
     {
+      key: "light",
       icon: "fa-lightbulb",
       label: "Iluminância",
       value: d.light ?? "—",
-      unit:  "lux",
-      alert: d.light != null && d.light < 500
+      raw:   d.light,
+      unit:  "ADC (LM393)",
+      sub:   subFor(d.light_class, "Menor = mais luz"),
+      alert: isBadClass(d.light_class)
+              || (d.light != null && d.light > 3500),
     },
     {
+      key: "noise_db",
       icon: "fa-volume-low",
       label: "Ruído",
-      value: typeof d.noise === "number" ? d.noise : formatNoise(d.noise),
-      unit:  typeof d.noise === "number" ? "dB(A)" : "",
-      alert: d.noise === "elevado" || (typeof d.noise === "number" && d.noise > 35)
-    }
+      value: d.noise_db != null ? d.noise_db.toFixed(1)
+                                  : (typeof d.noise === "number" ? d.noise : "—"),
+      raw:   d.noise_db,
+      unit:  "dB rel.",
+      sub:   subFor(d.noise, "MSM261 (I2S)"),
+      alert: isBadClass(d.noise)
+              || (d.noise_db != null && d.noise_db > 55),
+    },
+    {
+      key: "comfort",
+      icon: "fa-heart-pulse",
+      label: "Conforto global",
+      value: d.comfort ? formatClass(d.comfort) : "—",
+      unit:  "",
+      sub:   "Score ASHRAE + OMS",
+      alert: isBadClass(d.comfort),
+      isText: true,
+    },
   ];
 
-  document.getElementById("sensor-grid").innerHTML = tiles.map(t => `
-    <div class="sensor-tile ${t.alert ? "alert" : ""}">
-      <i class="fa-solid ${t.icon}"></i>
-      <div class="label">${t.label}</div>
-      <div class="value">${t.value}<span class="unit"> ${t.unit}</span></div>
-    </div>
-  `).join("");
+  document.getElementById("sensor-grid").innerHTML = tiles.map(t => {
+    const tr = !t.isText && t.raw != null ? trendOf(t.key, t.raw) : null;
+    const trendHtml = tr
+      ? `<span class="trend ${tr.cls}" title="Δ vs leitura anterior">
+            ${tr.arrow}<span class="trend-delta">${formatDelta(t.key, tr.delta)}</span>
+         </span>`
+      : "";
+    return `
+      <div class="sensor-tile ${t.alert ? "alert" : ""}">
+        <i class="fa-solid ${t.icon}"></i>
+        <div class="label">${t.label}${trendHtml}</div>
+        <div class="value ${t.isText ? "value-text" : ""}">
+          ${t.value}${t.unit ? `<span class="unit"> ${t.unit}</span>` : ""}
+        </div>
+        ${t.sub ? `<div class="sublabel-row">${t.sub}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+
+  // Memorizar leituras atuais para a próxima comparação
+  tiles.forEach(t => { if (!t.isText && t.raw != null) _prev[t.key] = t.raw; });
+
+  // Tendência também na contagem de pessoas (mostrada noutra zona)
+  if (d.count != null) _prev.people = d.count;
 }
 
-function formatNoise(n) {
-  return ({ baixo: "Baixo", moderado: "Moderado", elevado: "Elevado" })[n] || n || "—";
+/* "necessita_ventilacao" → "Necessita ventilacao" (cosmético). */
+function formatClass(c) {
+  if (!c) return "—";
+  return c.replace(/_/g, " ")
+          .replace(/^\w/, ch => ch.toUpperCase());
 }
 
 function paintMeta(d) {

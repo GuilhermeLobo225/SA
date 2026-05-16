@@ -51,11 +51,14 @@ dependencies {
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
 
-    // Google Play Services Location — usado para geofencing (PL8)
+    // Google Play Services Location — usado para geofencing
     implementation(libs.play.services.location)
 
     // Coroutines — para fazer pedidos HTTP fora da main thread
     implementation(libs.kotlinx.coroutines.android)
+
+    // WorkManager — periodic job que verifica a API e dispara alertas
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Testes (opcional para já)
     testImplementation(libs.junit)

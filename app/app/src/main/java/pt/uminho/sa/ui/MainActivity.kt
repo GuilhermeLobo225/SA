@@ -8,6 +8,8 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -29,7 +31,7 @@ import pt.uminho.sa.databinding.ActivityMainBinding
  *  - Mostra-as numa RecyclerView; tocar num cartão abre a Activity de detalhe
  *  - FAB no canto inferior abre a CatalogoActivity (pesquisa de livros)
  *  - Pede permissões de localização (necessárias para registar a geofence
- *    da BG no detalhe — PL8). As permissões são pedidas aqui, no arranque,
+ *    da BG no detalhe). As permissões são pedidas aqui, no arranque,
  *    para que quando o utilizador for ao detalhe já estejam tratadas.
  */
 class MainActivity : AppCompatActivity() {
@@ -70,6 +72,19 @@ class MainActivity : AppCompatActivity() {
 
         carregarBibliotecas()
         pedirPermissoesIniciais()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.action_alertas) {
+            startActivity(Intent(this, AlertasActivity::class.java))
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     /* ---------- UI setup ---------- */
@@ -147,9 +162,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Em Android 10+, a permissão "Permitir sempre" só pode ser concedida nas
-     * Definições — exatamente como avisa a PL8. O sistema não permite que
-     * peçamos por runtime dialog. Daí esta caixa que reencaminha o utilizador.
+     * Em Android 10+, a permissão "Permitir sempre" só pode ser concedida
+     * nas Definições. O sistema não permite que peçamos por runtime dialog —
+     * daí esta caixa que reencaminha o utilizador.
      */
     private fun mostrarDialogoBackgroundLocation() {
         AlertDialog.Builder(this)

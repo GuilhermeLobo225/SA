@@ -60,7 +60,7 @@
     <string name="count_template">%1$d de %2$d registo(s)</string>
     <string name="exemplares_template">%1$d de %2$d disponíveis</string>
 
-    <!-- Geofencing (PL8) -->
+    <!-- Geofencing -->
     <string name="geofence_channel_name">Alertas de biblioteca</string>
     <string name="geofence_channel_desc">Notificações quando entras ou sais da zona de uma biblioteca monitorizada.</string>
     <string name="geofence_enter_title">A entrar na %1$s</string>
@@ -82,4 +82,60 @@
     <!-- Erros -->
     <string name="erro_carregar">Erro ao carregar dados</string>
     <string name="voltar">Voltar</string>
+
+    <!-- Previsão (painel resumo no detalhe) -->
+    <string name="previsao_titulo">Previsão para a próxima hora</string>
+    <string name="previsao_descricao">Estimativa baseada no histórico recente da sala. A tendência (↗/↘/→) compara com a leitura atual.</string>
+    <string name="previsao_fonte_api">API LOCAL</string>
+    <string name="previsao_fonte_mock">MODO DEMO</string>
+    <string name="previsao_nao_disponivel">Previsão indisponível (necessita mais histórico)</string>
+
+    <!-- Histórico (ecrã dedicado) -->
+    <string name="title_historico">Histórico e previsão</string>
+    <string name="historico_eyebrow">SENSORIZAÇÃO · BG</string>
+    <string name="historico_titulo">Histórico das últimas 4 horas</string>
+    <string name="historico_descricao">Cada série mostra as leituras recentes do nó ambiental e a previsão para os próximos 60 minutos.</string>
+    <string name="historico_vazio">Sem histórico disponível para esta métrica.</string>
+    <string name="historico_unidade">Unidade: %1$s</string>
+    <string name="historico_modelo">Modelo: %1$s</string>
+    <string name="legenda_historico">Histórico</string>
+    <string name="legenda_previsao">Previsão</string>
+    <string name="abrir_historico">Ver histórico e previsão completos</string>
+
+    <!-- Targets do gráfico (chips) -->
+    <string name="target_temperature">Temperatura</string>
+    <string name="target_humidity">Humidade</string>
+    <string name="target_air_quality">Qualidade do ar</string>
+    <string name="target_light">Iluminância</string>
+    <string name="target_noise">Ruído</string>
+    <string name="target_people">Pessoas</string>
+
+    <!-- Alertas (Activity de configuração) -->
+    <string name="menu_alertas">Alertas</string>
+    <string name="title_alertas">Alertas</string>
+    <string name="alertas_eyebrow">DEFINIÇÕES</string>
+    <string name="alertas_titulo">Alertas personalizados</string>
+    <string name="alertas_descricao">A app verifica a Biblioteca Geral em segundo plano (a cada 15 minutos, mínimo permitido pelo Android) e notifica-te quando se cumpre alguma das regras que escolheres.</string>
+    <string name="alertas_global_titulo">Receber alertas</string>
+    <string name="alertas_global_desc">Liga ou desliga todos os alertas em segundo plano de uma vez.</string>
+    <string name="alertas_regra_ocupacao_titulo">Tem lugar na BG</string>
+    <string name="alertas_regra_ocupacao_desc">Notifica quando a ocupação cai abaixo do limiar escolhido.</string>
+    <string name="alertas_regra_temp_titulo">Temperatura fora do conforto</string>
+    <string name="alertas_regra_temp_desc">Notifica se a temperatura sair do intervalo 20–26 °C (ASHRAE 55).</string>
+    <string name="alertas_regra_ruido_titulo">Ruído elevado</string>
+    <string name="alertas_regra_ruido_desc">Notifica quando o nível sonoro está marcado como elevado ou ultrapassa 55 dB.</string>
+    <string name="alertas_limiar_ocupacao_valor">Limiar: %1$d %%</string>
+    <string name="alertas_nota_15min">O Android limita o intervalo mínimo a 15 minutos por questões de bateria. Os alertas podem demorar até esse tempo a aparecer.</string>
+    <string name="alertas_guardar">Guardar definições</string>
+    <string name="alertas_guardados">Definições guardadas</string>
+
+    <!-- Canal e mensagens das notificações dos alertas -->
+    <string name="alerts_channel_name">Alertas personalizados</string>
+    <string name="alerts_channel_desc">Notificações geradas pelas regras configuradas no ecrã de Alertas.</string>
+    <string name="alert_occ_title">A BG tem lugar 🪑</string>
+    <string name="alert_occ_msg">Ocupação atual: %1$d %% (limiar %2$d %%). %3$d lugares livres. Toca para abrir.</string>
+    <string name="alert_temp_title">Temperatura fora do conforto 🌡️</string>
+    <string name="alert_temp_msg">A temperatura na BG está em %1$.1f °C — fora do intervalo recomendado (20–26 °C).</string>
+    <string name="alert_noise_title">Ruído elevado na BG 🔊</string>
+    <string name="alert_noise_msg">Nível sonoro registado: %1$s. Pode estar pouco propício a estudo.</string>
 </resources>

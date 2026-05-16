@@ -1,6 +1,12 @@
 """
 Sala de Estudo Inteligente — Pipeline de Deteção
-YOLOv8 + DeepSORT para contagem de ocupantes.
+YOLOv11x para contagem de ocupantes (sem DeepSORT).
+
+DeepSORT foi removido porque o intervalo de captura da ESP-CAM (30 s) é
+demasiado esparso para fazer tracking temporal benéfico: com `n_init=3` a
+confirmação demorava ~90 s e com `max_age=30` mantinha-se a track ~15 min
+após a pessoa sair. Para o nosso caso, contar deteções por frame é mais
+responsivo e mais correto.
 
 Lê imagens do projeto Vision (Storage) e escreve resultados de ocupação
 no projeto Sensor (RTDB).
@@ -14,12 +20,10 @@ from pathlib import Path
 
 import cv2
 from ultralytics import YOLO
-from deep_sort_realtime.deepsort_tracker import DeepSort
 
 from config import (
     YOLO_MODEL, YOLO_CONFIDENCE, YOLO_IOU_THRESHOLD, YOLO_CLASSES,
     YOLO_CONF_PER_CLASS,
-    DEEPSORT_MAX_AGE, DEEPSORT_N_INIT, DEEPSORT_MAX_COSINE_DIST,
     ROOM_CAPACITY, ROOM_TABLES, CHAIRS_PER_TABLE,
     LOCAL_TEMP_DIR, ROOM_ID,
     DELETE_AFTER_INFERENCE,
@@ -37,22 +41,19 @@ COCO_PERSON = 0
 
 
 class OccupancyDetector:
-    """YOLOv8 + DeepSORT — contagem de pessoas na sala.
+    """YOLOv11x — contagem de pessoas na sala (por frame, sem tracking temporal).
 
     A capacidade da sala (nº de cadeiras) vem do config (ROOM_CAPACITY), não do
     YOLO. As cadeiras livres são derivadas: ROOM_CAPACITY − pessoas detetadas.
+
+    Sem DeepSORT: cada frame da ESP-CAM é processada de forma independente.
+    Como o intervalo é de 30 s, tracking temporal traria mais latência do que
+    benefício (ver docstring do módulo).
     """
 
     def __init__(self):
-        logger.info("A inicializar YOLOv8 (%s)...", YOLO_MODEL)
+        logger.info("A inicializar YOLO (%s)...", YOLO_MODEL)
         self.model = YOLO(YOLO_MODEL)
-
-        logger.info("A inicializar DeepSORT...")
-        self.tracker = DeepSort(
-            max_age=DEEPSORT_MAX_AGE,
-            n_init=DEEPSORT_N_INIT,
-            max_cosine_distance=DEEPSORT_MAX_COSINE_DIST,
-        )
 
         self.firebase = FirebaseSync()
         Path(LOCAL_TEMP_DIR).mkdir(parents=True, exist_ok=True)
@@ -107,10 +108,9 @@ class OccupancyDetector:
             except Exception as e:
                 logger.warning("Falha ao gravar imagem anotada: %s", e)
 
-        # Tracking só de pessoas
-        tracks = self.tracker.update_tracks(person_dets, frame=img)
-        confirmed = [t for t in tracks if t.is_confirmed()]
-        people = len(confirmed)
+        # Contagem direta: cada deteção (após filtro de confiança per-class)
+        # conta como uma pessoa. Sem tracking temporal — ver docstring do módulo.
+        people = len(person_dets)
 
         # Log detalhado de cada deteção
         if detections_log:

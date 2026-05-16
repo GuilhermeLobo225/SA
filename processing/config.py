@@ -74,20 +74,22 @@ YOLO_CONF_PER_CLASS = {
 }
 
 # ============================================================
-# DeepSORT
+# DeepSORT — REMOVIDO
 # ============================================================
-DEEPSORT_MAX_AGE = 30
-DEEPSORT_N_INIT = 3
-DEEPSORT_MAX_COSINE_DIST = 0.3
+# O tracking temporal foi retirado: o intervalo de captura da ESP-CAM (30 s)
+# é demasiado esparso para o DeepSORT trazer benefícios (n_init=3 implicava
+# 90 s para confirmar uma pessoa, e max_age=30 retinha a track ~15 min depois
+# de ela sair). Contagem direta de deteções por frame é mais responsiva.
+# Os parâmetros DEEPSORT_* foram removidos; ver detector.py.
 
 # ============================================================
 # Capacidade da sala
 # ============================================================
 # Modelo: cada mesa tem CHAIRS_PER_TABLE cadeiras.
 # A capacidade total é derivada: ROOM_CAPACITY = ROOM_TABLES * CHAIRS_PER_TABLE
-ROOM_TABLES       = 2        # nº de mesas na sala
-CHAIRS_PER_TABLE  = 4        # cadeiras por mesa
-ROOM_CAPACITY     = ROOM_TABLES * CHAIRS_PER_TABLE   # = 8
+ROOM_TABLES       = 1        # nº de mesas no campo de visão da ESP-CAM
+CHAIRS_PER_TABLE  = 4        # cadeiras por mesa (cenário sala-piloto)
+ROOM_CAPACITY     = ROOM_TABLES * CHAIRS_PER_TABLE   # = 4
 
 # Cenários:
 #   teste mínimo   : ROOM_TABLES=1, CHAIRS_PER_TABLE=1 → 1 cadeira (binário livre/cheio)

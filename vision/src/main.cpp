@@ -35,8 +35,9 @@
 // Identificação da sala
 #define ROOM_ID        "sala_b1_piso2"
 
-// Intervalo de captura (ms)
-#define CAPTURE_INTERVAL 30000UL
+// Intervalo de captura (ms). 15 s dá boa responsividade e ainda dá tempo a
+// uploads SVGA num Wi-Fi típico. Subir para 30 s se a rede for fraca.
+#define CAPTURE_INTERVAL 15000UL
 
 // NTP
 #define NTP_SERVER "pool.ntp.org"
@@ -160,12 +161,17 @@ void initCamera() {
   cconfig.xclk_freq_hz = 20000000;
   cconfig.pixel_format = PIXFORMAT_JPEG;
 
+  // Resolução: SVGA (800×600) é mais que suficiente para o YOLO (que redimensiona
+  // para 640×640 internamente). Antes usávamos UXGA (1600×1200) mas o ficheiro
+  // ficava com ~200 KB, demasiado lento no Wi-Fi → uploads de 60-90 s e
+  // intervalos reais de 2 min entre fotos. Com SVGA descemos para ~40-80 KB e
+  // uploads de ~5-10 s.
   if (psramFound()) {
-    cconfig.frame_size   = FRAMESIZE_UXGA;   // 1600x1200
+    cconfig.frame_size   = FRAMESIZE_SVGA;   // 800x600
     cconfig.jpeg_quality = 12;
     cconfig.fb_count     = 2;
   } else {
-    cconfig.frame_size   = FRAMESIZE_SVGA;   // 800x600
+    cconfig.frame_size   = FRAMESIZE_VGA;    // 640x480 (fallback ainda mais pequeno)
     cconfig.jpeg_quality = 15;
     cconfig.fb_count     = 1;
   }

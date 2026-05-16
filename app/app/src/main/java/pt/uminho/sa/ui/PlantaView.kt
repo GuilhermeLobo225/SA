@@ -23,8 +23,7 @@ import pt.uminho.sa.data.Zona
  *    etiqueta "sem sensor".
  *
  * Mantenho-a propositadamente sem dependências externas — só Canvas e Paint —
- * para que se possa explicar linha a linha. Isto cobre material da PL5 sobre
- * Views e UI clássica em Android.
+ * para que se possa explicar linha a linha.
  */
 class PlantaView @JvmOverloads constructor(
     context: Context,

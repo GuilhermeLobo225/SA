@@ -25,13 +25,13 @@ object Config {
     /** Timeout dos pedidos HTTP (ms). Mantemos curto para falhar rápido para o mock. */
     const val HTTP_TIMEOUT_MS = 3_000
 
-    /** Coordenadas aproximadas da BG no campus de Gualtar (PL8 — geofencing). */
+    /** Coordenadas aproximadas da BG no campus de Gualtar (usadas pelo geofencing). */
     const val BG_LAT = 41.5611
     const val BG_LON = -8.3973
 
     /**
-     * Raio da geofence em metros. Os PLs avisam que abaixo de 100–150 m
-     * o sinal GPS pode oscilar e dar falsos positivos.
+     * Raio da geofence em metros. Abaixo de 100–150 m o sinal GPS pode
+     * oscilar e dar falsos positivos — escolhemos o limite inferior recomendado.
      */
     const val BG_RADIUS_M = 150f
 
@@ -40,4 +40,7 @@ object Config {
 
     /** Canal de notificações usado nos alertas de geofence. */
     const val NOTIF_CHANNEL_GEOFENCE = "geofence_alerts"
+
+    /** Canal de notificações usado pelo `AlertWorker` (alertas configuráveis). */
+    const val NOTIF_CHANNEL_ALERTS = "configurable_alerts"
 }

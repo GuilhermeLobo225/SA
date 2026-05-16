@@ -13,8 +13,7 @@ import pt.uminho.sa.databinding.ItemBibliotecaBinding
  * Adapter para a lista de bibliotecas do MainActivity.
  *
  * Usa ViewBinding (ativado em build.gradle.kts: buildFeatures { viewBinding = true })
- * para acedermos às views do XML por nome sem precisar de findViewById,
- * mantendo o estilo da PL5 mas mais conciso.
+ * para acedermos às views do XML por nome sem precisar de findViewById.
  */
 class BibliotecasAdapter(
     private var bibliotecas: List<Biblioteca>,

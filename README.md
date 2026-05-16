@@ -73,7 +73,7 @@ Camada de Sensorização
 Ambos os clientes consomem o **mesmo endpoint REST** (`/api/rooms/{id}`) servido pelo `processing/api.py` e partilham os mesmos ficheiros estáticos (`libraries.json`, `books.csv`).
 
 - **Website** (`website/`): HTML + JS vanilla, planta da sala em SVG, polling a cada 15 s, fallback para mock quando a API está offline
-- **App Android** (`app/`): Kotlin nativo, mesma planta em `Canvas` (`PlantaView`), `ApiClient` com `HttpURLConnection`+`org.json`, geofence de chegada à BG (PL8) que dispara notificações com a ocupação atual
+- **App Android** (`app/`): Kotlin nativo, mesma planta em `Canvas` (`PlantaView`), `ApiClient` com `HttpURLConnection`+`org.json`, geofence de chegada à BG que dispara notificações com a ocupação atual
 - Código de cores alinhado: 🟢 vazio, 🟡 parcial, 🔴 cheio
 
 ---
@@ -291,6 +291,29 @@ SA/
    - Abrir `app/` no Android Studio (Koala 2024.1.1+, JDK 17, SDK 34)
    - No emulador, `Config.API_BASE` já aponta para `10.0.2.2:5000`
    - Em telemóvel físico, mudar para o IP do PC na LAN em `app/app/src/main/java/pt/uminho/sa/data/Config.kt`
+
+---
+
+## 🔮 Componente preditivo & Trabalho futuro
+
+A pasta [`processing/ml/`](processing/ml/) contém o esqueleto para análise
+preditiva, com comparação de **três métodos** (baseline por hora, Holt-Winters,
+LSTM) — ver [`processing/ml/README.md`](processing/ml/README.md).
+
+**No âmbito desta entrega:** previsão de **conforto ambiental** (temperatura,
+humidade, qualidade do ar, ruído) a partir do histórico que o Sensor_NODE
+escreve em `rooms/<id>/environment/history`. Estas séries são suaves e
+periódicas, suficientes para mostrar resultado com poucos dias de dados.
+
+**Deixado como trabalho futuro:**
+- **Previsão de ocupação** (`people`/`status`). O scaffold permite-o
+  (`forecasting.py --target people`) mas requer **semanas a meses** de
+  histórico fiável da sala em operação real — fora do âmbito desta sprint.
+- Anomaly detection (LSTM autoencoder).
+- Serviço `predictor.py` em loop a escrever `rooms/<id>/predictions/...` no
+  Firebase, com painel "próximas 2 h" no website.
+- Calibração dos limiares de conforto e do MQ-135 com referência de sonómetro
+  e CO₂-meter profissionais.
 
 ---
 
