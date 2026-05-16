@@ -14,8 +14,8 @@ Padrão gerado:
                  vazia 22-24h, dias úteis vs fim-de-semana diferentes
 
 Uso:
-    python ml/seed_synthetic.py --days 14            # 2 semanas de histórico
-    python ml/seed_synthetic.py --days 7 --dry-run   # ver o que seria escrito
+    python ml/seed_synthetic.py --days 14            # Fallback se DB estiver vazia
+    python ml/seed_synthetic.py --dry-run            # Ver o que seria escrito
 """
 
 import argparse
@@ -85,8 +85,8 @@ def env_at(ts: datetime, people: int) -> dict:
 
     # Classes
     air_class   = "bom" if air_raw < 800 else ("aceitavel" if air_raw < 1500
-                                                else ("necessita_ventilacao" if air_raw < 2500
-                                                      else "mau"))
+                                               else ("necessita_ventilacao" if air_raw < 2500
+                                                     else "mau"))
     light_class = "bom" if light_raw < 2500 else ("insuficiente" if light_raw < 3500
                                                    else "escuro")
     noise_class = "baixo" if noise_db < 35 else ("moderado" if noise_db < 55
@@ -137,8 +137,28 @@ def occ_payload(ts: datetime, people: int) -> dict:
 
 
 # ============================================================
-# Escrita
+# Interação com Firebase
 # ============================================================
+def get_last_timestamp(app, path: str) -> datetime | None:
+    """Procura o último registo no Firebase e devolve o seu timestamp."""
+    ref = db.reference(path, app=app)
+    
+    # Ordenamos pela chave (Push ID) que é cronológica por natureza.
+    # Isto evita o erro do ".indexOn" no Firebase caso não queiramos mexer nas regras.
+    result = ref.order_by_key().limit_to_last(1).get()
+    
+    if result:
+        # result é um dicionário { push_id: { dados } }
+        _, data = list(result.items())[0]
+        ts_str = data.get("timestamp")
+        if ts_str:
+            try:
+                return datetime.fromisoformat(ts_str)
+            except ValueError:
+                log.warning("Formato de data inválido no Firebase: %s", ts_str)
+    return None
+
+
 def push_batch(app, path: str, items: list[dict], dry: bool):
     if dry:
         log.info("[dry-run] %d itens NÃO escritos em %s", len(items), path)
@@ -151,10 +171,35 @@ def push_batch(app, path: str, items: list[dict], dry: bool):
 # ============================================================
 # Main
 # ============================================================
-def main(days: int, step_minutes: int, dry: bool) -> int:
+def main(days: int, step_minutes: int, dry: bool, force_start: str | None) -> int:
     sync = FirebaseSync()
     now = datetime.now().replace(second=0, microsecond=0)
-    start = now - timedelta(days=days)
+    
+    env_path = f"rooms/{ROOM_ID}/environment/history"
+    occ_path = f"rooms/{ROOM_ID}/occupancy/history"
+
+    # Se o utilizador forçar a data, ignoramos a pesquisa no Firebase
+    if force_start:
+        try:
+            start = datetime.fromisoformat(force_start)
+            log.info("A usar data de início FORÇADA: %s", start)
+        except ValueError:
+            log.error("Formato de data inválido. Usa 'YYYY-MM-DD HH:MM:SS'")
+            return 1
+    else:
+        # Tenta descobrir onde parámos (caso não seja forçado)
+        last_ts = get_last_timestamp(sync.sensor_app, env_path)
+
+        if last_ts:
+            log.info("Encontrado histórico no Firebase. Último registo: %s", last_ts)
+            start = last_ts + timedelta(minutes=step_minutes)
+        else:
+            log.info("Firebase vazio (ou sem timestamps). A gerar %d dias de base...", days)
+            start = now - timedelta(days=days)
+
+    if start >= now:
+        log.info("Os dados já estão atualizados até %s. Nada de novo a gerar.", now)
+        return 0
 
     env_items, occ_items = [], []
     cur = start
@@ -165,12 +210,12 @@ def main(days: int, step_minutes: int, dry: bool) -> int:
         cur += timedelta(minutes=step_minutes)
 
     log.info("Gerados %d pontos ambientais + %d pontos de ocupação", len(env_items), len(occ_items))
-    log.info("Intervalo: %s → %s (passo %d min)", start, now, step_minutes)
+    log.info("Intervalo gerado: %s → %s (passo %d min)", start, now, step_minutes)
 
-    push_batch(sync.sensor_app, f"rooms/{ROOM_ID}/environment/history", env_items, dry)
+    push_batch(sync.sensor_app, env_path, env_items, dry)
     log.info("Escrito environment/history (%d itens)", 0 if dry else len(env_items))
 
-    push_batch(sync.sensor_app, f"rooms/{ROOM_ID}/occupancy/history", occ_items, dry)
+    push_batch(sync.sensor_app, occ_path, occ_items, dry)
     log.info("Escrito occupancy/history (%d itens)", 0 if dry else len(occ_items))
 
     log.info("Pronto. Lembrete: documenta no relatório que estes dados são SINTÉTICOS.")
@@ -179,9 +224,11 @@ def main(days: int, step_minutes: int, dry: bool) -> int:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--days", type=int, default=7, help="Quantos dias para trás (default: 7)")
+    ap.add_argument("--days", type=int, default=7, help="Fallback: Quantos dias se a BD estiver vazia (default: 7)")
     ap.add_argument("--step-minutes", type=int, default=2,
                     help="Passo entre pontos em minutos (default: 2 → 720 pts/dia)")
     ap.add_argument("--dry-run", action="store_true", help="Só simular, sem escrever no Firebase")
+    ap.add_argument("--start", type=str, default=None, 
+                    help="Força a data de início (ex: '2026-05-16 18:27:00'). Ignora o Firebase.")
     a = ap.parse_args()
-    sys.exit(main(a.days, a.step_minutes, a.dry_run))
+    sys.exit(main(a.days, a.step_minutes, a.dry_run, a.start))

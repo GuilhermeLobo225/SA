@@ -259,8 +259,20 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", default="temperature",
                     help="Coluna a prever (temperature, humidity, air_quality_raw, noise_db, people, ...)")
-    ap.add_argument("--horizon", type=float, default=6.0,
-                    help="Horas de teste no fim da série (default: 6 h)")
+    # compute default horizon (hours) from data if available, otherwise 0.5
+    try:
+        csv = DATA_DIR / "merged.csv"
+        if csv.exists():
+            df = pd.read_csv(csv, parse_dates=["timestamp"])
+            t = df.timestamp.max() - df.timestamp.min()
+            default_h = float(t.total_seconds() / 3600.0) * 0.25
+        else:
+            default_h = 0.5
+    except Exception:
+        default_h = 0.5
+
+    ap.add_argument("--horizon", type=float, default=default_h,
+                    help="Horas de teste no fim da série (default: 0.5 h)")
     ap.add_argument("--plot", action="store_true",
                     help="Gera ml/data/forecast_<target>.png")
     a = ap.parse_args()
