@@ -86,3 +86,20 @@ build/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ============================================================
+# KiCad
+# ============================================================
+# Ficheiros de lock (bloqueio temporário ao ter o programa aberto)
+*.lck
+~*.lck
+
+# Backups automáticos criados pelo KiCad
+*.bak
+*-bak
+*.kicad_pcb-bak
+*.kicad_sch-bak
+_autosave-*
+
+# Ficheiros de cache locais
+fp-info-cache
