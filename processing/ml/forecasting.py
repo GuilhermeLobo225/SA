@@ -37,7 +37,9 @@ RESAMPLE_RULE = "1min"   # uniformiza espaçamento temporal (Sensor envia a cada
 # ============================================================
 # Carregamento e preparação
 # ============================================================
-def load_series(target: str) -> pd.Series:
+def load_series(target: str,
+                data_from: str | None = None,
+                data_to: str | None = None) -> pd.Series:
     csv = DATA_DIR / "merged.csv"
     if not csv.exists():
         raise FileNotFoundError(
@@ -46,6 +48,16 @@ def load_series(target: str) -> pd.Series:
     df = pd.read_csv(csv, parse_dates=["timestamp"])
     if target not in df.columns:
         raise KeyError(f"Target '{target}' não está em {list(df.columns)}")
+
+    # Filtro temporal: deixa só treinar/avaliar numa janela específica.
+    # Útil quando há dados reais e sintéticos misturados na mesma CSV.
+    if data_from:
+        df = df[df["timestamp"] >= pd.Timestamp(data_from)]
+        log.info("Filtro --data-from: %s", data_from)
+    if data_to:
+        df = df[df["timestamp"] <  pd.Timestamp(data_to)]
+        log.info("Filtro --data-to:   %s", data_to)
+
     s = df.set_index("timestamp")[target].astype(float)
     # uniformiza espaçamento temporal e preenche pequenos buracos
     s = s.resample(RESAMPLE_RULE).mean().interpolate(method="time", limit=5)
@@ -198,8 +210,9 @@ def predict_lstm(train: pd.Series, test_index: pd.DatetimeIndex,
 # ============================================================
 # Runner
 # ============================================================
-def main(target: str, test_hours: float, plot: bool):
-    s = load_series(target)
+def main(target: str, test_hours: float, plot: bool,
+         data_from: str | None = None, data_to: str | None = None):
+    s = load_series(target, data_from=data_from, data_to=data_to)
     train, test = train_test_split(s, test_hours=test_hours)
 
     if len(test) == 0:
@@ -264,16 +277,20 @@ if __name__ == "__main__":
         csv = DATA_DIR / "merged.csv"
         if csv.exists():
             df = pd.read_csv(csv, parse_dates=["timestamp"])
-            t = df.timestamp.max() - df.timestamp.min()
-            default_h = float(t.total_seconds() / 3600.0) * 0.25
+            total_h = (df.timestamp.max() - df.timestamp.min()).total_seconds() / 3600.0
+            # 10% do dataset, com mínimo de 0.5h e máximo de 2h
+            default_h = min(2.0, max(0.5, total_h * 0.10))
         else:
             default_h = 0.5
     except Exception:
         default_h = 0.5
-
     ap.add_argument("--horizon", type=float, default=default_h,
                     help="Horas de teste no fim da série (default: 0.5 h)")
     ap.add_argument("--plot", action="store_true",
                     help="Gera ml/data/forecast_<target>.png")
+    ap.add_argument("--data-from", type=str, default=None,
+                    help="ISO date — usar apenas pontos a partir desta data")
+    ap.add_argument("--data-to",   type=str, default=None,
+                    help="ISO date — usar apenas pontos ANTES desta data (exclusivo)")
     a = ap.parse_args()
-    sys.exit(main(a.target, a.horizon, a.plot))
+    sys.exit(main(a.target, a.horizon, a.plot, a.data_from, a.data_to))

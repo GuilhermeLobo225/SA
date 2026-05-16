@@ -159,13 +159,26 @@ def get_last_timestamp(app, path: str) -> datetime | None:
     return None
 
 
-def push_batch(app, path: str, items: list[dict], dry: bool):
+def push_batch(app, path: str, items: list[dict], dry: bool, chunk_size: int = 500):
+    """Escreve em chunks via `ref.update()` para minimizar latência.
+
+    Cada chunk é uma única chamada HTTP com múltiplos push-IDs gerados
+    localmente. Em ~21k itens passa de >30 min para ~1-2 min.
+    """
     if dry:
         log.info("[dry-run] %d itens NÃO escritos em %s", len(items), path)
         return
     ref = db.reference(path, app=app)
-    for it in items:
-        ref.push().set(it)
+    total = len(items)
+    written = 0
+    for i in range(0, total, chunk_size):
+        chunk = items[i:i + chunk_size]
+        # Geração local de push-IDs cronológicos (Firebase aceita-os via update)
+        bulk = {ref.push().key: it for it in chunk}
+        ref.update(bulk)
+        written += len(chunk)
+        log.info("  push %d/%d (%.0f%%) em %s",
+                 written, total, written * 100 / total, path)
 
 
 # ============================================================
@@ -179,15 +192,19 @@ def main(days: int, step_minutes: int, dry: bool, force_start: str | None) -> in
     occ_path = f"rooms/{ROOM_ID}/occupancy/history"
 
     # Se o utilizador forçar a data, ignoramos a pesquisa no Firebase
+    # e geramos EXATAMENTE `days` dias a partir de `start`.
     if force_start:
         try:
             start = datetime.fromisoformat(force_start)
-            log.info("A usar data de início FORÇADA: %s", start)
+            end   = start + timedelta(days=days)
+            log.info("A usar data de início FORÇADA: %s → %s (%d dias)",
+                     start, end, days)
         except ValueError:
             log.error("Formato de data inválido. Usa 'YYYY-MM-DD HH:MM:SS'")
             return 1
     else:
-        # Tenta descobrir onde parámos (caso não seja forçado)
+        # Tenta descobrir onde parámos (caso não seja forçado).
+        # Aqui a janela é até "agora" (modo "encher tudo o que falta").
         last_ts = get_last_timestamp(sync.sensor_app, env_path)
 
         if last_ts:
@@ -196,21 +213,22 @@ def main(days: int, step_minutes: int, dry: bool, force_start: str | None) -> in
         else:
             log.info("Firebase vazio (ou sem timestamps). A gerar %d dias de base...", days)
             start = now - timedelta(days=days)
+        end = now
 
-    if start >= now:
-        log.info("Os dados já estão atualizados até %s. Nada de novo a gerar.", now)
+    if start >= end:
+        log.info("Nada a gerar (start=%s, end=%s).", start, end)
         return 0
 
     env_items, occ_items = [], []
     cur = start
-    while cur < now:
+    while cur < end:
         people = occupancy_at(cur)
         env_items.append(env_at(cur, people))
         occ_items.append(occ_payload(cur, people))
         cur += timedelta(minutes=step_minutes)
 
     log.info("Gerados %d pontos ambientais + %d pontos de ocupação", len(env_items), len(occ_items))
-    log.info("Intervalo gerado: %s → %s (passo %d min)", start, now, step_minutes)
+    log.info("Intervalo gerado: %s → %s (passo %d min)", start, end, step_minutes)
 
     push_batch(sync.sensor_app, env_path, env_items, dry)
     log.info("Escrito environment/history (%d itens)", 0 if dry else len(env_items))
