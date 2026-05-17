@@ -91,21 +91,34 @@ def build_room_payload(internal_id: str) -> dict | None:
     # do ambiente, caindo para "now".
     timestamp = occ.get("timestamp") or env.get("timestamp") or datetime.now().isoformat()
 
+    # ---- Per-cadeira ----
+    # Vem do detector como rooms/<id>/occupancy/current.chair_states (e
+    # table_states). Mantém estrutura mesmo se o detector ainda não tiver
+    # produzido — devolve listas vazias.
+    chair_states = occ.get("chair_states") or []
+    table_states = occ.get("table_states") or []
+    chairs_occupied = int(occ.get("chairs_occupied", sum(1 for c in chair_states if c.get("occupied"))) or 0)
+
     return {
         # Identificação
         "room_id":      to_public_id(internal_id),
         "timestamp":    timestamp,
 
-        # Ocupação
-        "count":          count,                                # número de pessoas (alias "people")
-        "people":         count,                                # alias para retro-compat
-        "capacity":       capacity,
-        "tables":         int(occ.get("tables", 0) or 0),
-        "chairs_total":   int(occ.get("chairs_total", 0) or 0),
-        "chairs_free":    int(occ.get("chairs_free", 0) or 0),
-        "occupancy_pct":  float(occ.get("occupancy_pct", 0) or 0),
-        "status":         status_5,                             # 5 estados (UX)
-        "status_simple":  status_3,                             # 3 estados (LED)
+        # Ocupação agregada
+        "count":            count,                              # nº de pessoas (alias "people")
+        "people":           count,                              # alias para retro-compat
+        "capacity":         capacity,
+        "tables":           int(occ.get("tables", 0) or 0),
+        "chairs_total":     int(occ.get("chairs_total", 0) or 0),
+        "chairs_free":      int(occ.get("chairs_free", 0) or 0),
+        "chairs_occupied":  chairs_occupied,
+        "occupancy_pct":    float(occ.get("occupancy_pct", 0) or 0),
+        "status":           status_5,                           # 5 estados (UX)
+        "status_simple":    status_3,                           # 3 estados (LED)
+
+        # Ocupação per-cadeira / per-mesa (vindo do layout descoberto)
+        "chair_states":     chair_states,
+        "table_states":     table_states,
 
         # Ambiente — valores numéricos primários (para thresholds e gráficos)
         "temperature":   env.get("temperature"),                # °C
@@ -200,6 +213,29 @@ def get_environment(room_id):
         "light_class":        payload["light_class"],
         "noise":              payload["noise"],
     })
+
+
+@app.route("/api/rooms/<room_id>/layout", methods=["GET"])
+def get_layout(room_id):
+    """
+    Layout descoberto automaticamente pelo detector na primeira imagem
+    (rooms/<id>/layout no Firebase). Devolve {chairs, tables, image_size,
+    discovered_at, ...} normalizado em [0..1], pronto para a planta SVG e
+    para a `PlantaView` da app móvel renderizarem cadeira a cadeira.
+    """
+    internal_id = resolve_internal_id(room_id)
+    if internal_id is None:
+        return jsonify({"error": f"Sala '{room_id}' não encontrada"}), 404
+
+    from firebase_admin import db
+    ref = db.reference(f"rooms/{internal_id}/layout", app=sync.sensor_app)
+    layout = ref.get()
+    if not layout:
+        return jsonify({
+            "error": "Layout ainda não descoberto",
+            "hint":  "Aguardar a próxima imagem da ESP32-CAM (assume-se sala vazia).",
+        }), 404
+    return jsonify({"room_id": to_public_id(internal_id), **layout})
 
 
 @app.route("/api/health", methods=["GET"])

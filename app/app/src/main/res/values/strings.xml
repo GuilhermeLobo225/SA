@@ -83,6 +83,13 @@
     <string name="erro_carregar">Erro ao carregar dados</string>
     <string name="voltar">Voltar</string>
 
+    <!-- Vista da câmara (planta por cadeira, layout descoberto pelo detector) -->
+    <string name="camview_titulo">Vista da câmara — ocupação por cadeira</string>
+    <string name="camview_descricao">Layout descoberto automaticamente pelo detector na primeira imagem capturada (assumida sala vazia). Cada cadeira fica marcada como ocupada quando há uma pessoa, mochila, livro ou portátil dentro da sua área — inclui o caso de pausa (mesa reservada com objetos mas sem pessoa).</string>
+    <string name="camview_empty">A aguardar o detector descobrir o layout (será automático na próxima imagem da câmara).</string>
+    <string name="camview_legenda_livre">Livre</string>
+    <string name="camview_legenda_ocupada">Ocupada</string>
+
     <!-- Previsão (painel resumo no detalhe) -->
     <string name="previsao_titulo">Previsão para a próxima hora</string>
     <string name="previsao_descricao">Estimativa baseada no histórico recente da sala. A tendência (↗/↘/→) compara com a leitura atual.</string>

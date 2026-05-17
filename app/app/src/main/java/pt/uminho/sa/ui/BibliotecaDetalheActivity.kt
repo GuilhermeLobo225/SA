@@ -93,6 +93,7 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
             configurarPlanta()
             configurarBotoesGeofence()
             configurarBotaoHistorico()
+            carregarLayoutDescoberto()
         } else {
             b.sensorBlock.visibility       = View.GONE
             b.geofenceActions.visibility   = View.GONE
@@ -164,6 +165,20 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
         b.planta.setLayout(layout)
     }
 
+    /**
+     * Vai à API buscar o layout descoberto pelo detector (cadeiras + mesas
+     * em coordenadas normalizadas da imagem da câmara) e passa-o à
+     * `CameraView`. É um carregamento único — o layout não muda no tempo,
+     * só o estado por cadeira (esse é atualizado a cada polling).
+     */
+    private fun carregarLayoutDescoberto() {
+        lifecycleScope.launch {
+            val roomId = biblioteca.apiRoomId ?: biblioteca.id
+            val layout = withContext(Dispatchers.IO) { ApiClient.fetchLayout(roomId) }
+            b.cameraView.setLayout(layout)
+        }
+    }
+
     /* ============================================================
        Polling à API (HTTP GET + parse JSON)
        ============================================================ */
@@ -206,6 +221,10 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
 
         // --- Planta: reusa a mesma RoomData ---
         b.planta.setRoomData(d)
+
+        // --- Vista da câmara: estado per-cadeira (só funciona se o detector
+        //     já descobriu o layout E está a produzir chair_states) ---
+        b.cameraView.setChairStates(d.chairStates)
 
         // --- Sensores ---
         atualizarSensores(d)

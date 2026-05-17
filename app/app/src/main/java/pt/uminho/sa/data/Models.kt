@@ -74,18 +74,23 @@ data class RoomData(
     val roomId: String,
     val timestamp: String?,
 
-    // Ocupação
+    // Ocupação agregada
     val count: Int,
     val capacity: Int,
     val tables: Int,
     val chairsTotal: Int,
     val chairsFree: Int,
+    val chairsOccupied: Int,
     /** Percentagem 0..1 vinda da API; em fallback, calculada a partir de count/capacity. */
     val occupancyPctRaw: Float,
     /** 5 níveis (vazio, disponivel, parcialmente_ocupado, quase_cheio, cheio). */
     val status: String,
     /** 3 níveis (livre, parcial, cheio) — usado pelo firmware do LED. */
     val statusSimple: String?,
+
+    // Ocupação per-cadeira (do layout descoberto pelo detector)
+    val chairStates: List<ChairState>,
+    val tableStates: List<TableState>,
 
     // Ambiente — numéricos primários
     val temperature: Double?,
@@ -111,6 +116,61 @@ data class RoomData(
             capacity > 0               -> (count.toFloat() / capacity).coerceIn(0f, 1f)
             else                        -> 0f
         }
+}
+
+/* ---------- Estado per-cadeira (vem do detector via /api/rooms/{id}) ---------- */
+
+/**
+ * Estado em tempo real de uma cadeira: ocupada ou livre, e (opcional) que
+ * objeto a marcou como ocupada (`"person"`, `"backpack"`, `"laptop"`, …).
+ */
+data class ChairState(
+    val id: String,
+    val occupied: Boolean,
+    val by: String?
+)
+
+/** Agregado por mesa, derivado do `chair_states`. */
+data class TableState(
+    val id: String,
+    val chairsTotal: Int,
+    val chairsOccupied: Int,
+    val chairsFree: Int
+)
+
+/* ---------- Layout descoberto (vem de /api/rooms/{id}/layout) ---------- */
+
+/**
+ * Posições/dimensões em [0..1] (relativas à imagem da câmara).
+ *  - cx, cy: centro
+ *  - x, y, w, h: bounding box
+ *  - diag: diagonal normalizada (útil para escalonar marcadores)
+ *  - tableId: a que mesa o detector associou a cadeira
+ */
+data class LayoutChair(
+    val id: String,
+    val x: Float, val y: Float, val w: Float, val h: Float,
+    val cx: Float, val cy: Float,
+    val diag: Float,
+    val tableId: String?
+)
+
+data class LayoutTable(
+    val id: String,
+    val x: Float, val y: Float, val w: Float, val h: Float,
+    val cx: Float, val cy: Float,
+    val chairIds: List<String>
+)
+
+data class DiscoveredLayout(
+    val roomId: String,
+    val imageWidth: Int,
+    val imageHeight: Int,
+    val tables: List<LayoutTable>,
+    val chairs: List<LayoutChair>,
+    val discoveredAt: String?
+) {
+    val hasData: Boolean get() = chairs.isNotEmpty()
 }
 
 /* ---------- Histórico + previsão (vêm de /api/rooms/{id}/history) ---------- */

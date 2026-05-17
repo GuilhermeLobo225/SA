@@ -47,31 +47,54 @@ YOLO_MODEL = "yolo11x.pt"        # versão extra-large do YOLOv11 — máxima pr
 YOLO_CONFIDENCE = 0.30           # threshold base fallback (classes sem entrada no dict)
 YOLO_IOU_THRESHOLD = 0.5
 
-# Classes ativas no YOLO:
-#   0  = person        → ÚNICA classe que conta para a ocupação (LED)
-#   56 = chair         → DEBUG VISUAL — não entra na contagem
-#   57 = couch         → DEBUG VISUAL — não entra na contagem
-#   60 = dining_table  → DEBUG VISUAL — não entra na contagem
+# Classes ativas no YOLO. Há TRÊS papéis distintos:
 #
-# A capacidade da sala (chairs_total) vem de ROOM_TABLES × CHAIRS_PER_TABLE,
-# não da deteção. Isto torna o LED imune a:
-#   • cadeiras tapadas por estudantes sentados (oclusão)
-#   • cadeiras fantasma em ângulos infelizes (falsos positivos)
-#   • estilos de cadeira que o COCO não reconhece bem
-# A deteção destas classes serve apenas como sanity-check visual nos frames
-# anotados em temp_images/_annotated/.
-YOLO_CLASSES = [0, 56, 57, 60]
+#  (1) Mobiliário fixo — usado UMA VEZ no arranque para descobrir o layout
+#      da sala (ver processing/layout_discovery.py). Depois disso só serve
+#      como sanity-check visual nos frames anotados.
+#        56 = chair
+#        57 = couch
+#        60 = dining_table
+#
+#  (2) "Ocupadores" — qualquer um destes, ao ser detetado, marca a cadeira
+#      mais próxima como ocupada. Resolve o seat hogging (pessoa em pausa
+#      mas com mochila na mesa).
+#        0  = person
+#        24 = backpack
+#        26 = handbag
+#        28 = suitcase
+#        39 = bottle
+#        63 = laptop
+#        67 = cell phone
+#        73 = book
+OCCUPIER_CLASSES   = [0, 24, 26, 28, 39, 63, 67, 73]
+FURNITURE_CLASSES  = [56, 57, 60]
+YOLO_CLASSES = OCCUPIER_CLASSES + FURNITURE_CLASSES
 
 # Filtros por classe APLICADOS DEPOIS da inferência (ver detector.py).
-# Para mobília subimos um pouco o threshold em relação ao mínimo absoluto
-# para evitar boxes ruidosas no canto da imagem (já não dependemos delas
-# para contagem, portanto não há benefício em ser muito permissivo).
+# Pessoa exigente (evita confundir cartazes/sombras). Objetos pequenos com
+# threshold mais baixo (saem com confiança menor mesmo quando bem detetados).
+# Mobiliário moderado: usado uma vez na descoberta, não vale a pena ser estrito.
 YOLO_CONF_PER_CLASS = {
-    0:  0.55,   # person       — exigente (evita confundir cartazes/sombras)
-    56: 0.25,   # chair        — moderado (visual; o LED não depende)
-    57: 0.30,   # couch        — moderado
-    60: 0.25,   # dining_table — moderado
+    0:  0.55,   # person
+    24: 0.30,   # backpack
+    26: 0.30,   # handbag
+    28: 0.30,   # suitcase
+    39: 0.35,   # bottle
+    63: 0.40,   # laptop
+    67: 0.40,   # cell phone
+    73: 0.35,   # book
+    56: 0.25,   # chair        — usado na descoberta de layout
+    57: 0.30,   # couch        — idem
+    60: 0.25,   # dining_table — idem
 }
+
+# Quando o centro de uma deteção cai FORA da bounding box da cadeira, ainda
+# assim aceitamos como "perto" se a distância entre centros for menor que
+# CHAIR_PROXIMITY_FACTOR × diagonal_média_das_cadeiras. Tolera ligeira
+# diferença entre o box do COCO da cadeira e o box real (e o overhang das
+# pernas das pessoas).
+CHAIR_PROXIMITY_FACTOR = 0.50
 
 # ============================================================
 # DeepSORT — REMOVIDO

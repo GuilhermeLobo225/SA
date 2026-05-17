@@ -561,6 +561,104 @@ h1, h2, h3, h4 {
   align-self: flex-end;
 }
 
+/* ---------- Vista da câmara — ocupação por cadeira (layout descoberto) ---------- */
+.camview-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background:
+    repeating-linear-gradient(0deg,  var(--bg-subtle) 0, var(--bg-subtle) 1px, transparent 1px, transparent 28px),
+    repeating-linear-gradient(90deg, var(--bg-subtle) 0, var(--bg-subtle) 1px, transparent 1px, transparent 28px),
+    #fdfbf7;
+  border: 1.5px solid var(--text-strong);
+  border-radius: var(--radius-sm);
+  margin: 8px 0 16px;
+  overflow: hidden;
+}
+.camview-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 20px;
+}
+.camview-table {
+  position: absolute;
+  border: 1.5px dashed var(--border-strong);
+  background: rgba(168, 163, 154, .08);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.camview-table-label {
+  position: absolute;
+  top: 2px; left: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  opacity: .8;
+}
+.camview-chair {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid var(--uminho-red);
+  background: rgba(47, 138, 62, .35);    /* verde por defeito (livre) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--text-strong);
+  transition: background .25s ease, border-color .25s ease, color .25s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08);
+}
+.camview-chair.occupied {
+  background: rgba(154, 24, 24, .55);
+  border-color: var(--status-full);
+  color: #fff;
+}
+.camview-chair-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translate(-50%, -4px);
+  background: var(--text-strong);
+  color: #fff;
+  font-size: 10.5px;
+  white-space: nowrap;
+  padding: 3px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.camview-chair:hover .camview-chair-tooltip { opacity: 1; }
+
+.camview-legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+.camview-legend .swatch {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--uminho-red);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.camview-legend .swatch.free     { background: rgba(47, 138, 62, .35); }
+.camview-legend .swatch.occupied { background: rgba(154, 24, 24, .55); }
+
 .layout-legend {
   display: flex;
   gap: 18px;

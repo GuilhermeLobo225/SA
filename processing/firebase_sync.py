@@ -136,3 +136,26 @@ class FirebaseSync:
         """Snapshot completo da sala do projeto Sensor (env + occupancy)."""
         ref = db.reference(f"rooms/{ROOM_ID}", app=self.sensor_app)
         return ref.get() or {}
+
+    # ====================================================================
+    # SENSOR — layout descoberto automaticamente
+    # ====================================================================
+    def get_layout(self) -> dict | None:
+        """
+        Devolve o layout persistido em `rooms/<id>/layout`, ou None se a sala
+        ainda não tem layout (caso em que o detector deve descobrir um na
+        próxima imagem capturada).
+        """
+        ref = db.reference(f"rooms/{ROOM_ID}/layout", app=self.sensor_app)
+        return ref.get()
+
+    def push_layout(self, layout: dict):
+        """
+        Persiste o layout descoberto pelo `layout_discovery.py`. Sobrescreve
+        qualquer layout anterior — admin pode forçar nova descoberta apagando
+        este caminho no Firebase Console.
+        """
+        ref = db.reference(f"rooms/{ROOM_ID}/layout", app=self.sensor_app)
+        ref.set(layout)
+        logger.info("Layout persistido: %d cadeiras / %d mesas.",
+                    layout.get("chairs_total", 0), layout.get("tables_total", 0))

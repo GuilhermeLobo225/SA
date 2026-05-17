@@ -286,6 +286,26 @@ function mockStats() {
   };
 }
 
+/* ---------- Layout descoberto automaticamente ---------- */
+
+/* Devolve a estrutura persistida em rooms/<id>/layout do Firebase, contendo:
+     { image_size: [W,H], tables: [...], chairs: [...], chairs_total, ... }
+   Todas as coordenadas (x, y, w, h, cx, cy, diag) estão normalizadas a [0..1]
+   relativo à imagem da câmara. Devolve null em modo demo. */
+async function fetchLayout(roomId) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3000);
+    const res = await fetch(`${API_BASE}/rooms/${roomId}/layout`, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.warn(`[api] /rooms/${roomId}/layout indisponível. (${e.message})`);
+    return null;
+  }
+}
+
 /* Expor no escopo global para os scripts de página */
 window.SDB = {
   loadLibraries,
@@ -293,6 +313,7 @@ window.SDB = {
   fetchRoom,
   fetchHistory,
   fetchStats,
+  fetchLayout,
   statusLabel,
   occupancyTier,
   formatTimestamp,

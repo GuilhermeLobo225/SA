@@ -3,6 +3,7 @@ package pt.uminho.sa.data
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -46,6 +47,85 @@ object ApiClient {
             Log.w(TAG, "Falhou parse de /rooms/$roomId (${e.javaClass.simpleName}: ${e.message})", e)
             mockRoom(roomId)
         }
+    }
+
+    /* ============================================================
+       GET /api/rooms/{roomId}/layout
+       ============================================================ */
+
+    /**
+     * Devolve o layout descoberto pelo detector na primeira imagem (assumida
+     * sala vazia). Em modo demo (API offline) devolve `null` — a UI mostra um
+     * placeholder a explicar que a descoberta ainda não foi feita.
+     */
+    suspend fun fetchLayout(roomId: String): DiscoveredLayout? = withContext(Dispatchers.IO) {
+        val url = "${Config.API_BASE}/rooms/$roomId/layout"
+        val body = doGet(url) ?: return@withContext null
+        return@withContext try {
+            parseLayoutJson(body, roomId)
+        } catch (e: Exception) {
+            Log.w(TAG, "Falhou parse de /layout (${e.javaClass.simpleName}: ${e.message})", e)
+            null
+        }
+    }
+
+    private fun parseLayoutJson(body: String, fallbackId: String): DiscoveredLayout {
+        val o = JSONObject(body)
+        // image_size pode vir como array [W,H] (Firebase preserva a ordem em listas)
+        var w = 0; var h = 0
+        val sizeArr = o.optJSONArray("image_size")
+        if (sizeArr != null && sizeArr.length() >= 2) {
+            w = sizeArr.optInt(0); h = sizeArr.optInt(1)
+        }
+        val chairsArr = o.optJSONArray("chairs")
+        val tablesArr = o.optJSONArray("tables")
+        val chairs = mutableListOf<LayoutChair>()
+        val tables = mutableListOf<LayoutTable>()
+
+        if (chairsArr != null) {
+            for (i in 0 until chairsArr.length()) {
+                val c = chairsArr.getJSONObject(i)
+                chairs += LayoutChair(
+                    id      = c.optString("id"),
+                    x       = c.optDouble("x", 0.0).toFloat(),
+                    y       = c.optDouble("y", 0.0).toFloat(),
+                    w       = c.optDouble("w", 0.0).toFloat(),
+                    h       = c.optDouble("h", 0.0).toFloat(),
+                    cx      = c.optDouble("cx", 0.0).toFloat(),
+                    cy      = c.optDouble("cy", 0.0).toFloat(),
+                    diag    = c.optDouble("diag", 0.0).toFloat(),
+                    tableId = c.optString("table_id").ifEmpty { null }
+                )
+            }
+        }
+        if (tablesArr != null) {
+            for (i in 0 until tablesArr.length()) {
+                val t = tablesArr.getJSONObject(i)
+                val cidsArr = t.optJSONArray("chair_ids")
+                val cids = mutableListOf<String>()
+                if (cidsArr != null) {
+                    for (j in 0 until cidsArr.length()) cids += cidsArr.optString(j)
+                }
+                tables += LayoutTable(
+                    id       = t.optString("id"),
+                    x        = t.optDouble("x", 0.0).toFloat(),
+                    y        = t.optDouble("y", 0.0).toFloat(),
+                    w        = t.optDouble("w", 0.0).toFloat(),
+                    h        = t.optDouble("h", 0.0).toFloat(),
+                    cx       = t.optDouble("cx", 0.0).toFloat(),
+                    cy       = t.optDouble("cy", 0.0).toFloat(),
+                    chairIds = cids
+                )
+            }
+        }
+        return DiscoveredLayout(
+            roomId       = o.optString("room_id", fallbackId),
+            imageWidth   = w,
+            imageHeight  = h,
+            tables       = tables,
+            chairs       = chairs,
+            discoveredAt = o.optString("discovered_at").ifEmpty { null }
+        )
     }
 
     /* ============================================================
@@ -118,9 +198,13 @@ object ApiClient {
             tables          = o.optInt("tables", 0),
             chairsTotal     = o.optInt("chairs_total", 0),
             chairsFree      = o.optInt("chairs_free", 0),
+            chairsOccupied  = o.optInt("chairs_occupied", 0),
             occupancyPctRaw = optFloat(o, "occupancy_pct"),
             status          = o.optString("status", "desconhecido"),
             statusSimple    = o.optString("status_simple").ifEmpty { null },
+
+            chairStates     = parseChairStates(o.optJSONArray("chair_states")),
+            tableStates     = parseTableStates(o.optJSONArray("table_states")),
 
             temperature     = optDouble(o, "temperature"),
             humidity        = optDouble(o, "humidity"),
@@ -136,6 +220,35 @@ object ApiClient {
 
             source          = "api"
         )
+    }
+
+    private fun parseChairStates(arr: JSONArray?): List<ChairState> {
+        if (arr == null) return emptyList()
+        val out = mutableListOf<ChairState>()
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            out += ChairState(
+                id       = o.optString("id"),
+                occupied = o.optBoolean("occupied", false),
+                by       = o.optString("by").ifEmpty { null }
+            )
+        }
+        return out
+    }
+
+    private fun parseTableStates(arr: JSONArray?): List<TableState> {
+        if (arr == null) return emptyList()
+        val out = mutableListOf<TableState>()
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            out += TableState(
+                id              = o.optString("id"),
+                chairsTotal     = o.optInt("chairs_total", 0),
+                chairsOccupied  = o.optInt("chairs_occupied", 0),
+                chairsFree      = o.optInt("chairs_free", 0)
+            )
+        }
+        return out
     }
 
     private fun parseHistoryJson(body: String): HistoryResponse {
@@ -220,9 +333,14 @@ object ApiClient {
             tables          = 2,
             chairsTotal     = capacity,
             chairsFree      = capacity - count,
+            chairsOccupied  = count,
             occupancyPctRaw = pct.toFloat(),
             status          = status,
             statusSimple    = statusSimple,
+
+            // Modo demo: não temos layout descoberto → listas vazias
+            chairStates     = emptyList(),
+            tableStates     = emptyList(),
 
             temperature     = 21.5 + sin(phase * PI * 2) * 1.2,
             humidity        = 52.0 + cos(phase * PI) * 6,
