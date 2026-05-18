@@ -65,24 +65,35 @@ YOLO_IOU_THRESHOLD = 0.5
 #        28 = suitcase
 #        39 = bottle
 #        63 = laptop
-#        67 = cell phone
 #        73 = book
+#
+#      NOTA: cell_phone (67) FOI REMOVIDO dos ocupadores. Em ângulo
+#      cenital, um carregador/cabo enrolado/estojo é fisicamente
+#      indistinguível de um telemóvel para o YOLO — qualquer threshold
+#      é insuficiente porque o modelo dá conf alta a ambos. Telemóveis
+#      continuam a ser DETETADOS (estão em DISTRACTOR_CLASSES abaixo)
+#      para aparecerem na imagem anotada e no log de debug, mas NÃO
+#      contam para a ocupação. O sinal "telemóvel sozinho na mesa" não
+#      é fiável: a maioria dos estudantes leva o telefone com eles e os
+#      que ficam são quase sempre acompanhados de outros objetos
+#      (mochila, livro, laptop) que JÁ marcam a cadeira como ocupada.
 #
 #  (3) "Distratores" — classes incluídas APENAS na inferência (não em
 #      OCCUPIER_CLASSES). Servem para o YOLO conseguir rotular objetos
-#      pequenos retangulares (rato, comando, teclado, tigela) na sua
-#      classe correta em vez de os forçar a `cell_phone` (que era a única
-#      classe pequena disponível e por isso "absorvia" todos os falsos).
-#      Estas classes NÃO ocupam cadeiras — só evitam a confusão.
+#      pequenos retangulares (rato, comando, teclado, tigela, telemóvel)
+#      na sua classe correta em vez de os forçar a `cell_phone` (que
+#      era a única classe pequena disponível e por isso "absorvia"
+#      todos os falsos). Estas classes NÃO ocupam cadeiras.
+#        67 = cell_phone   (visualizado mas NÃO ocupa — ver nota acima)
 #        64 = mouse        (ratos de computador)
 #        65 = remote       (comandos, carregadores parecidos)
 #        66 = keyboard     (teclados)
 #        41 = cup          (canecas que se confundem com bottle)
 #        45 = bowl         (tigelas que se confundem com livro/laptop)
 #        62 = tv           (monitores: evita confusão com laptop)
-OCCUPIER_CLASSES   = [0, 24, 26, 28, 39, 63, 67, 73]
+OCCUPIER_CLASSES   = [0, 24, 26, 28, 39, 63, 73]
 FURNITURE_CLASSES  = [56, 57, 60]
-DISTRACTOR_CLASSES = [41, 45, 62, 64, 65, 66]   # detetadas, mas ignoradas
+DISTRACTOR_CLASSES = [41, 45, 62, 64, 65, 66, 67]   # detetadas, mas ignoradas
 YOLO_CLASSES = OCCUPIER_CLASSES + FURNITURE_CLASSES + DISTRACTOR_CLASSES
 
 # Filtros por classe APLICADOS DEPOIS da inferência (ver detector.py).
@@ -110,13 +121,6 @@ YOLO_CONF_PER_CLASS = {
     28: 0.35,   # suitcase
     39: 0.40,   # bottle  (subido — confunde-se com canecas e copos)
     63: 0.45,   # laptop  (subido — confunde-se com livros/tablets)
-    # Cell phone: SUBIDO de 0.40 → 0.70. Era a classe responsável pela
-    # maior parte dos falsos positivos — carregadores, ratos, comandos
-    # e estojos de óculos eram todos rotulados como cell_phone porque
-    # era a única classe pequena retangular ativa. Combinado com as
-    # DISTRACTOR_CLASSES (mouse/remote/keyboard) e o sanity-check de
-    # tamanho no detector, fica drasticamente mais robusto.
-    67: 0.70,   # cell phone
     73: 0.40,   # book   (subido — confunde-se com tablets e revistas)
 
     # --- mobiliário (só debug visual) ---
@@ -135,6 +139,11 @@ YOLO_CONF_PER_CLASS = {
     64: 0.25,   # mouse
     65: 0.25,   # remote
     66: 0.25,   # keyboard
+    # cell_phone como DISTRATOR (não ocupador): threshold ALTO porque só
+    # nos interessa para a visualização. Se o YOLO não tiver certezas
+    # absolutas (>=0.85), prefere-se que o objeto não tenha label nenhum
+    # no frame anotado a ter um "cell_phone" enganador.
+    67: 0.85,   # cell_phone (apenas visualização / distrator)
 }
 
 # Sanity-checks de tamanho de bbox (em fração da área da imagem).
@@ -150,8 +159,8 @@ OCCUPIER_BBOX_LIMITS = {
     28: (0.005, 0.30),   # suitcase
     39: (0.0005, 0.05),  # bottle:    objeto pequeno
     63: (0.005, 0.35),   # laptop:    objeto médio (ecrã visível)
-    67: (0.0008, 0.04),  # cell phone: pequeno e fino, NUNCA enorme
     73: (0.002, 0.15),   # book
+    # cell_phone removido — já não é ocupador (ver OCCUPIER_CLASSES).
 }
 
 # Deduplicação entre pessoas: quando dois boxes "person" se sobrepõem
