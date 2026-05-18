@@ -89,12 +89,31 @@ YOLO_CONF_PER_CLASS = {
     60: 0.25,   # dining_table — idem
 }
 
-# Quando o centro de uma deteção cai FORA da bounding box da cadeira, ainda
-# assim aceitamos como "perto" se a distância entre centros for menor que
-# CHAIR_PROXIMITY_FACTOR × diagonal_média_das_cadeiras. Tolera ligeira
-# diferença entre o box do COCO da cadeira e o box real (e o overhang das
-# pernas das pessoas).
-CHAIR_PROXIMITY_FACTOR = 0.50
+# Critérios para considerar uma deteção como "estando" numa cadeira.
+# A câmara está em ângulo cenital — o que significa que objetos sobre a mesa
+# (laptop, livro) aparecem ACIMA do encosto da cadeira na imagem. Por isso
+# o critério "centro da deteção dentro do box da cadeira" falha quase sempre.
+#
+# Em vez disso usamos três sinais combinados:
+#
+#  1) IoC (Intersection over Chair area): se o box da deteção sobrepõe pelo
+#     menos CHAIR_IOC_MIN da área da cadeira, considera-se hit.
+#  2) Distância da BOTTOM-CENTER da deteção (o "ponto de assento" virtual)
+#     ao centro da cadeira deve ser menor que CHAIR_PROXIMITY_FACTOR vezes
+#     a diagonal da cadeira.
+#  3) Quando uma deteção (ex.: pessoa) sobrepõe várias cadeiras, escolhe-se
+#     a cadeira cujo centro é mais próximo da bottom-center da deteção.
+CHAIR_IOC_MIN          = 0.10    # 10% da área da cadeira sobreposta = candidato
+CHAIR_PROXIMITY_FACTOR = 1.20    # antes 0.50 — demasiado restrito para ângulo cenital
+
+# Descoberta de layout: em vez de usar uma única frame (que pode ter
+# detecções incompletas por variabilidade do YOLO), acumulamos detecções
+# de mobiliário ao longo de N frames consecutivos. Boxes próximos (IoU>X)
+# são consolidados como uma única entidade, ficando com o representante de
+# maior confiança.
+LAYOUT_DISCOVERY_FRAMES   = 5     # n.º de frames a acumular antes de persistir
+LAYOUT_MERGE_IOU          = 0.45  # IoU mínimo para considerar dois boxes iguais
+LAYOUT_CHAIR_MIN_CONF     = 0.20  # baixa este threshold só durante descoberta
 
 # ============================================================
 # DeepSORT — REMOVIDO
@@ -106,18 +125,28 @@ CHAIR_PROXIMITY_FACTOR = 0.50
 # Os parâmetros DEEPSORT_* foram removidos; ver detector.py.
 
 # ============================================================
-# Capacidade da sala
+# Capacidade da sala — FALLBACK
 # ============================================================
-# Modelo: cada mesa tem CHAIRS_PER_TABLE cadeiras.
-# A capacidade total é derivada: ROOM_CAPACITY = ROOM_TABLES * CHAIRS_PER_TABLE
-ROOM_TABLES       = 1        # nº de mesas no campo de visão da ESP-CAM
-CHAIRS_PER_TABLE  = 4        # cadeiras por mesa (cenário sala-piloto)
-ROOM_CAPACITY     = ROOM_TABLES * CHAIRS_PER_TABLE   # = 4
+# ⚠️  Em produção, a capacidade REAL vem do layout descoberto pelo detector
+#     a partir da primeira imagem da ESP-CAM (ver `layout_discovery.py` e
+#     `firebase_sync.get_layout()`). Sempre que existir layout persistido em
+#     `rooms/<id>/layout` no Firebase, ele tem prioridade.
+#
+# As constantes abaixo são apenas usadas como FALLBACK em duas situações:
+#   1. Antes da primeira descoberta (boot inicial).
+#   2. Pelo `seed_synthetic.py` para gerar dados sintéticos sem dependência
+#      do layout real.
+#
+# Para forçar nova descoberta: DELETE /api/rooms/<id>/layout (ou apagar
+# manualmente o nó `rooms/<id>/layout` no Firebase Console).
+ROOM_TABLES       = 1        # fallback: nº de mesas
+CHAIRS_PER_TABLE  = 4        # fallback: cadeiras por mesa
+ROOM_CAPACITY     = ROOM_TABLES * CHAIRS_PER_TABLE   # fallback derivado
 
-# Cenários:
+# Cenários TÍPICOS (só relevantes para o fallback / seed_synthetic):
 #   teste mínimo   : ROOM_TABLES=1, CHAIRS_PER_TABLE=1 → 1 cadeira (binário livre/cheio)
 #   teste em casa  : ROOM_TABLES=1, CHAIRS_PER_TABLE=4 → 4 cadeiras
-#   biblioteca BG  : ROOM_TABLES=2, CHAIRS_PER_TABLE=4 → 8 cadeiras (cenário atual)
+#   biblioteca BG  : ROOM_TABLES=2, CHAIRS_PER_TABLE=4 → 8 cadeiras
 #   maior          : ROOM_TABLES=5, CHAIRS_PER_TABLE=4 → 20 cadeiras
 
 # ============================================================

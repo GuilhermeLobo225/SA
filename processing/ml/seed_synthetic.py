@@ -123,16 +123,49 @@ def occ_payload(ts: datetime, people: int) -> dict:
     elif tables_used < ROOM_TABLES:  status = "livre"
     elif people < ROOM_CAPACITY:     status = "parcial"
     else:                            status = "cheio"
+
+    # Geração de chair_states/table_states sintéticos: preenche cadeira a
+    # cadeira da T1 até esgotar a mesa, depois passa à T2. IDs C1..Cn / T1..Tm
+    # — coincidem com a convenção usada por `layout_discovery.py`, por isso o
+    # frontend mostra estados realistas se a sala tiver um layout fake com
+    # estes mesmos IDs (caso contrário ignora silenciosamente).
+    chair_states = []
+    table_states = []
+    chair_idx = 0
+    remaining = people
+    for t_i in range(ROOM_TABLES):
+        local_occ = min(CHAIRS_PER_TABLE, remaining)
+        remaining -= local_occ
+        ids_in_table = []
+        for c_i in range(CHAIRS_PER_TABLE):
+            chair_idx += 1
+            cid = f"C{chair_idx}"
+            ids_in_table.append(cid)
+            chair_states.append({
+                "id":       cid,
+                "occupied": c_i < local_occ,
+                "by":       "person" if c_i < local_occ else None,
+            })
+        table_states.append({
+            "id":              f"T{t_i + 1}",
+            "chairs_total":    CHAIRS_PER_TABLE,
+            "chairs_occupied": local_occ,
+            "chairs_free":     CHAIRS_PER_TABLE - local_occ,
+        })
+
     return {
-        "timestamp":     ts.isoformat(timespec="seconds"),
-        "room_id":       ROOM_ID,
-        "people":        people,
-        "chairs_total":  ROOM_CAPACITY,
-        "chairs_free":   max(0, ROOM_CAPACITY - people),
-        "capacity":      ROOM_CAPACITY,
-        "tables":        ROOM_TABLES,
-        "occupancy_pct": round(people / ROOM_CAPACITY * 100, 1),
-        "status":        status,
+        "timestamp":        ts.isoformat(timespec="seconds"),
+        "room_id":          ROOM_ID,
+        "people":           people,
+        "chairs_total":     ROOM_CAPACITY,
+        "chairs_free":      max(0, ROOM_CAPACITY - people),
+        "chairs_occupied":  people,
+        "capacity":         ROOM_CAPACITY,
+        "tables":           ROOM_TABLES,
+        "occupancy_pct":    round(people / ROOM_CAPACITY * 100, 1),
+        "status":           status,
+        "chair_states":     chair_states,
+        "table_states":     table_states,
     }
 
 

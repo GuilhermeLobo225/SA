@@ -32,14 +32,14 @@ from ultralytics import YOLO
 from config import (
     YOLO_MODEL, YOLO_CONFIDENCE, YOLO_IOU_THRESHOLD, YOLO_CLASSES,
     YOLO_CONF_PER_CLASS, OCCUPIER_CLASSES, FURNITURE_CLASSES,
-    CHAIR_PROXIMITY_FACTOR,
+    CHAIR_PROXIMITY_FACTOR, CHAIR_IOC_MIN, LAYOUT_DISCOVERY_FRAMES,
     ROOM_CAPACITY, ROOM_TABLES, CHAIRS_PER_TABLE,
     LOCAL_TEMP_DIR, ROOM_ID,
     DELETE_AFTER_INFERENCE,
     SAVE_ANNOTATED_IMAGES, ANNOTATED_DIR,
 )
 from firebase_sync import FirebaseSync
-from layout_discovery import discover_layout_from_image
+from layout_discovery import discover_layout_from_image, discover_layout_multi_frame
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -62,15 +62,19 @@ class OccupancyDetector:
         self.firebase = FirebaseSync()
         Path(LOCAL_TEMP_DIR).mkdir(parents=True, exist_ok=True)
 
-        # Layout: pode estar persistido ou ser descoberto na primeira imagem.
+        # Layout: pode estar persistido ou ser descoberto multi-frame.
         self.layout: Optional[dict] = self.firebase.get_layout()
+        # Buffer de imagens para descoberta acumulada. Quando o tamanho
+        # atinge LAYOUT_DISCOVERY_FRAMES, fundimos as detecções e persistimos.
+        self._discovery_buffer: list[str] = []
         if self.layout:
             logger.info("Layout existente carregado: %d cadeiras / %d mesas.",
                         self.layout.get("chairs_total", 0),
                         self.layout.get("tables_total", 0))
         else:
-            logger.info("Sem layout persistido — a próxima imagem será usada "
-                        "para descobrir o layout (assume-se sala vazia).")
+            logger.info("Sem layout persistido — vão ser acumuladas %d frames "
+                        "consecutivas para descoberta multi-frame (sala VAZIA).",
+                        LAYOUT_DISCOVERY_FRAMES)
 
     # =====================================================================
     # PIPELINE PRINCIPAL
@@ -81,17 +85,50 @@ class OccupancyDetector:
             logger.error("Não foi possível ler a imagem: %s", image_path)
             return {"count": -1, "error": "Imagem inválida"}
 
-        # ----- (A) Descoberta de layout, se ainda não existir -----
+        # ----- (A) Descoberta de layout MULTI-FRAME -----
+        # Em vez de descobrir a partir de uma única frame (que pode estar
+        # mal exposta ou com confiança baixa), acumulamos
+        # LAYOUT_DISCOVERY_FRAMES frames consecutivas e fundimos as
+        # detecções por IoU. Mais robusto a variabilidade do YOLO.
         if self.layout is None:
-            logger.info("A tentar descobrir o layout a partir desta imagem…")
-            layout = discover_layout_from_image(image_path, model=self.model)
+            # Copia a imagem para um path estável (o original será apagado pelo
+            # loop após esta função terminar).
+            stable_dir = Path(LOCAL_TEMP_DIR) / "_discovery"
+            stable_dir.mkdir(parents=True, exist_ok=True)
+            stable_path = str(stable_dir / Path(image_path).name)
+            try:
+                cv2.imwrite(stable_path, img)
+                self._discovery_buffer.append(stable_path)
+            except Exception as e:
+                logger.warning("Falha ao guardar frame para descoberta: %s", e)
+
+            n = len(self._discovery_buffer)
+            target = LAYOUT_DISCOVERY_FRAMES
+            logger.info("Descoberta em progresso: %d/%d frames acumuladas.", n, target)
+
+            if n < target:
+                # Ainda não temos frames suficientes — devolve resultado
+                # vazio (não publica nada na API) e espera pela próxima.
+                return {"count": -1, "error": "A acumular frames para descoberta"}
+
+            # Buffer cheio — corre descoberta multi-frame.
+            logger.info("A correr descoberta multi-frame com %d frames…", target)
+            layout = discover_layout_multi_frame(self._discovery_buffer, model=self.model)
             if layout is None:
-                logger.warning("Descoberta falhou — vou tentar na próxima imagem.")
-                return {"count": -1, "error": "Layout pendente"}
+                logger.warning(
+                    "Descoberta falhou (ex.: pessoas em alguma frame). "
+                    "A esvaziar buffer e a tentar outra vez."
+                )
+                self._discovery_buffer.clear()
+                return {"count": -1, "error": "Descoberta falhou"}
+
             self.firebase.push_layout(layout)
             self.layout = layout
-            # Como assumimos que esta imagem é a sala vazia, o estado é "livre"
-            # com todas as cadeiras desocupadas.
+            # Limpa as frames temporárias de descoberta
+            for p in self._discovery_buffer:
+                try: Path(p).unlink()
+                except OSError: pass
+            self._discovery_buffer.clear()
             return self._build_result(image_path, occupier_dets=[], annotated=None)
 
         # ----- (B) Inferência normal sobre os ocupadores + mobília (visual) -----
@@ -125,9 +162,22 @@ class OccupancyDetector:
                     "box":  [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
                 })
                 if cls in OCCUPIER_CLASSES:
+                    # Guardamos o box completo (em coords normalizadas) para
+                    # podermos depois calcular IoU/IoC com as cadeiras.
                     occupier_dets.append({
                         "cls": cls, "conf": conf,
-                        "cx": cx_n, "cy": cy_n,
+                        "x":   x1 / w_img,
+                        "y":   y1 / h_img,
+                        "w":   (x2 - x1) / w_img,
+                        "h":   (y2 - y1) / h_img,
+                        "cx":  cx_n,
+                        "cy":  cy_n,
+                        # bottom-center: o "ponto de assento" virtual.
+                        # Para uma pessoa sentada, esta é a coord onde o
+                        # rabo encontraria a cadeira; para um objeto sobre
+                        # a mesa (laptop), é onde toca o tampo.
+                        "bcx": cx_n,
+                        "bcy": y2 / h_img,
                     })
 
         # Guarda o frame anotado para inspeção visual
@@ -168,44 +218,153 @@ class OccupancyDetector:
         mean_diag = sum(diags) / len(diags) if diags else 0.1
 
         # ----- Atribuir cada deteção à cadeira "vencedora" -----
-        # Estratégia: para cada deteção, encontrar a cadeira cujo box contém
-        # o centro; se nenhuma contiver, escolher a cadeira mais próxima
-        # (distância centro-a-centro < CHAIR_PROXIMITY_FACTOR × diag).
-        # Empate: a deteção com maior confiança "vence" a cadeira (não a
-        # sobrepõe se já estiver atribuída a alguém com confiança maior).
-        # Pessoas têm prioridade sobre objetos (mesma cadeira → person ganha).
-        PRIORITY = {0: 3, 63: 2, 73: 2, 24: 2, 26: 2, 28: 2, 67: 1, 39: 1}
+        # Pipeline em DUAS passagens:
+        #
+        # ┌─ PASSAGEM 1 — pessoas (cls=0) ─────────────────────────────────┐
+        # │  Processa pessoas por ordem de confiança. Cada pessoa procura  │
+        # │  uma cadeira via 3 estágios:                                   │
+        # │    1) IoC (sobreposição box-pessoa × box-cadeira)              │
+        # │    2) proximidade da bottom-center                             │
+        # │    3) snap-to-table                                            │
+        # │  As mesas onde foi atribuída uma pessoa ficam marcadas.        │
+        # └────────────────────────────────────────────────────────────────┘
+        #
+        # ┌─ PASSAGEM 2 — objetos (laptop/book/backpack/…) ────────────────┐
+        # │  Processa objetos. Cada objeto pode reivindicar uma cadeira    │
+        # │  DIRETAMENTE (IoC sobre o box da cadeira → seat hogging        │
+        # │  legítimo: mochila no assento, livro no encosto) MESMO         │
+        # │  havendo pessoas perto. MAS o snap-to-table (objeto pousado    │
+        # │  no MEIO da mesa) só vale se NÃO houver pessoa nessa mesa —    │
+        # │  caso contrário o objeto é "da pessoa" e não conta.            │
+        # └────────────────────────────────────────────────────────────────┘
+        #
+        # Justificação: um portátil ao lado de uma pessoa sentada NÃO é
+        # uma cadeira reservada por ele — é da pessoa. Mas uma mochila
+        # POUSADA sobre o assento de outra cadeira É reserva ("seat
+        # hogging"), mesmo havendo gente na mesa.
 
-        def claim_strength(det: dict) -> float:
-            return PRIORITY.get(det["cls"], 1) * 10 + det["conf"]
+        person_dets = sorted(
+            (d for d in occupier_dets if d["cls"] == 0),
+            key=lambda d: d["conf"], reverse=True,
+        )
+        object_dets = sorted(
+            (d for d in occupier_dets if d["cls"] != 0),
+            key=lambda d: d["conf"], reverse=True,
+        )
 
-        # Itera por ordem decrescente de "força" da reivindicação: pessoa
-        # com alta confiança primeiro, depois objetos, por fim coisas mais
-        # ambíguas como bottle/cell_phone. Como percorremos por essa ordem,
-        # a primeira deteção que reivindica uma cadeira é sempre a vencedora
-        # — desempates posteriores são ignorados (cadeira já ocupada).
-        for det in sorted(occupier_dets, key=claim_strength, reverse=True):
-            best_chair = None
-            best_score = math.inf
+        # IDs de mesas em que foi atribuída pelo menos 1 pessoa.
+        tables_with_person: set[str] = set()
+
+        def _match_chair(
+            det: dict,
+            allow_snap: bool,
+            allow_proximity: bool,
+            forbidden_table_ids: Optional[set] = None,
+        ) -> tuple[Optional[dict], Optional[str]]:
+            """Aplica os 3 estágios de matching e devolve (cadeira, descrição).
+
+            `forbidden_table_ids` é a lista de mesas que estão "fora de
+            limites" para reivindicações FRACAS (estágios 2 e 3). O estágio
+            1 (IoC — objeto fisicamente em cima do assento, seat hogging
+            legítimo) NUNCA é bloqueado: uma mochila no assento conta
+            mesmo havendo pessoas na mesma mesa.
+            """
+            forbidden = forbidden_table_ids or set()
+
+            # 1) IoC — sempre disponível, sem filtro de mesa.
+            cand = []
             for ch in chairs:
                 if ch["occupied"]:
-                    continue   # já reivindicada por uma deteção mais forte
-                inside = (ch["x"] <= det["cx"] <= ch["x"] + ch["w"]
-                          and ch["y"] <= det["cy"] <= ch["y"] + ch["h"])
-                d = math.hypot(ch["cx"] - det["cx"], ch["cy"] - det["cy"])
-                limit = CHAIR_PROXIMITY_FACTOR * (ch.get("diag") or mean_diag)
-                if not inside and d > limit:
                     continue
-                # Quem está "dentro" tem score=0 e vence sempre os "perto".
-                score = 0.0 if inside else d
-                if score < best_score:
-                    best_score = score
-                    best_chair = ch
-            if best_chair is None:
-                continue
-            best_chair["occupied"]      = True
-            best_chair["occupied_by"]   = CLASS_NAMES.get(det["cls"], str(det["cls"]))
-            best_chair["occupier_conf"] = round(det["conf"], 3)
+                inter = _box_intersection_area(ch, det)
+                chair_area = ch["w"] * ch["h"]
+                if chair_area <= 0:
+                    continue
+                ioc = inter / chair_area
+                if ioc >= CHAIR_IOC_MIN:
+                    d_bc = math.hypot(ch["cx"] - det["bcx"], ch["cy"] - det["bcy"])
+                    cand.append((ch, ioc, d_bc))
+            if cand:
+                cand.sort(key=lambda t: t[2])
+                return cand[0][0], f"IoC={cand[0][1]:.2f}"
+
+            # 2) Proximidade — filtra cadeiras de mesas proibidas.
+            if allow_proximity:
+                best_d, best = math.inf, None
+                for ch in chairs:
+                    if ch["occupied"]:
+                        continue
+                    if ch.get("table_id") in forbidden:
+                        continue   # esta mesa já tem pessoa
+                    d = math.hypot(ch["cx"] - det["bcx"], ch["cy"] - det["bcy"])
+                    limit = CHAIR_PROXIMITY_FACTOR * (ch.get("diag") or mean_diag)
+                    if d > limit:
+                        continue
+                    if d < best_d:
+                        best_d, best = d, ch
+                if best is not None:
+                    return best, f"d={best_d:.3f}"
+
+            # 3) Snap-to-table — filtra mesas proibidas.
+            if allow_snap:
+                for t in tables:
+                    if t["id"] in forbidden:
+                        continue   # mesa já tem pessoa, objecto é "dela"
+                    inside = (t["x"] <= det["bcx"] <= t["x"] + t["w"] and
+                              t["y"] <= det["bcy"] <= t["y"] + t["h"])
+                    if not inside:
+                        continue
+                    table_chair_ids = set(t.get("chair_ids", []))
+                    candidates = [
+                        ch for ch in chairs
+                        if not ch["occupied"] and ch["id"] in table_chair_ids
+                    ]
+                    if not candidates:
+                        continue
+                    chosen = min(candidates,
+                                 key=lambda ch: math.hypot(ch["cx"] - det["bcx"],
+                                                            ch["cy"] - det["bcy"]))
+                    return chosen, f"table={t['id']}"
+            return None, None
+
+        def _claim(det: dict, chair: dict, kind: str) -> None:
+            chair["occupied"]      = True
+            chair["occupied_by"]   = CLASS_NAMES.get(det["cls"], str(det["cls"]))
+            chair["occupier_conf"] = round(det["conf"], 3)
+            tid = chair.get("table_id")
+            if det["cls"] == 0 and tid:
+                tables_with_person.add(tid)
+            logger.info(
+                "  → %s (conf=%.2f) ocupa %s [%s]",
+                CLASS_NAMES.get(det["cls"], str(det["cls"])),
+                det["conf"], chair["id"], kind,
+            )
+
+        # ===== Passagem 1: pessoas (todos os 3 estágios disponíveis) =====
+        for det in person_dets:
+            chair, kind = _match_chair(det, allow_snap=True, allow_proximity=True)
+            if chair is not None:
+                _claim(det, chair, kind)
+
+        # ===== Passagem 2: objetos =====
+        # Estágio 1 (IoC, seat hogging) é SEMPRE válido. Estágios 2 e 3
+        # (proximidade e snap-to-table) são bloqueados nas mesas que já
+        # têm pessoa — nessas mesas, qualquer objeto perto/na mesa é
+        # assumido como pertencendo à pessoa e não conta como reserva.
+        for det in object_dets:
+            chair, kind = _match_chair(
+                det,
+                allow_snap=True,
+                allow_proximity=True,
+                forbidden_table_ids=tables_with_person,
+            )
+            if chair is not None:
+                _claim(det, chair, kind)
+            else:
+                logger.info(
+                    "  · %s (conf=%.2f) sem cadeira [proximidade/snap bloqueados ou sem match]",
+                    CLASS_NAMES.get(det["cls"], str(det["cls"])), det["conf"],
+                )
 
         # ----- Reagregação por mesa + estado global -----
         for t in tables:
@@ -337,6 +496,24 @@ class OccupancyDetector:
             except Exception as e:
                 logger.error("Erro no loop: %s", e, exc_info=True)
                 time.sleep(10)
+
+
+# ----------------------------------------------------------------------
+# Helpers geométricos
+# ----------------------------------------------------------------------
+def _box_intersection_area(a: dict, b: dict) -> float:
+    """
+    Área da intersecção de dois boxes axis-aligned em coords normalizadas.
+    Cada box é um dict com chaves x, y, w, h (top-left + dimensões).
+    Devolve 0.0 se não se cruzam.
+    """
+    ix1 = max(a["x"], b["x"])
+    iy1 = max(a["y"], b["y"])
+    ix2 = min(a["x"] + a["w"], b["x"] + b["w"])
+    iy2 = min(a["y"] + a["h"], b["y"] + b["h"])
+    if ix2 <= ix1 or iy2 <= iy1:
+        return 0.0
+    return (ix2 - ix1) * (iy2 - iy1)
 
 
 if __name__ == "__main__":

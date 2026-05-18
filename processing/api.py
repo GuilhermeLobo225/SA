@@ -238,6 +238,42 @@ def get_layout(room_id):
     return jsonify({"room_id": to_public_id(internal_id), **layout})
 
 
+@app.route("/api/rooms/<room_id>/layout", methods=["DELETE"])
+def reset_layout(room_id):
+    """
+    Apaga o layout persistido em `rooms/<id>/layout`. Útil quando a câmara é
+    reposicionada ou a sala reconfigurada — força o detector a redescobrir
+    o layout na próxima imagem que receber.
+
+    O detector tem de ser reiniciado (Ctrl+C + python detector.py) para
+    voltar a entrar em modo "à espera de imagem com sala vazia"; em
+    alternativa, basta esperar que ele detecte a ausência de layout no
+    próximo loop e retome a descoberta automaticamente.
+    """
+    internal_id = resolve_internal_id(room_id)
+    if internal_id is None:
+        return jsonify({"error": f"Sala '{room_id}' não encontrada"}), 404
+
+    from firebase_admin import db
+    ref = db.reference(f"rooms/{internal_id}/layout", app=sync.sensor_app)
+    existing = ref.get()
+    if not existing:
+        return jsonify({
+            "ok":   True,
+            "note": "Não havia layout para apagar.",
+        })
+    ref.delete()
+    logger.info("Layout de %s eliminado por API — pronto para redescoberta.", internal_id)
+    return jsonify({
+        "ok":   True,
+        "note": ("Layout apagado. Reinicia o detector OU aguarda o próximo "
+                 "ciclo: a próxima imagem (sala vazia) vai disparar nova "
+                 "descoberta automaticamente."),
+        "chairs_before": existing.get("chairs_total", 0),
+        "tables_before": existing.get("tables_total", 0),
+    })
+
+
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "service": "sala-estudo-api"})
