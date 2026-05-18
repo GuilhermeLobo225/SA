@@ -480,4 +480,4 @@ def get_stats(room_id):
 
 
 if __name__ == "__main__":
-    app.run(host=API_HOST, port=API_PORT, debug=True)
+    app.run(host='0.0.0.0', port=API_PORT, debug=True)

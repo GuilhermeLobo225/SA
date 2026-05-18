@@ -17,7 +17,7 @@ object Config {
      *
      * O network_security_config.xml já autoriza estes hosts em cleartext (HTTP).
      */
-    const val API_BASE = "http://10.0.2.2:5000/api"
+    const val API_BASE = "http://172.20.10.6:5000/api"
 
     /** Período de polling à API (ms). Alinhado com a frequência dos nós ESP32 (30 s) */
     const val REFRESH_INTERVAL_MS = 15_000L
