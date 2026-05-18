@@ -122,10 +122,9 @@
     }
   ],
   "bg_layout": {
-    "descricao": "Sala-piloto da BGUM monitorizada pelo nó de visão: 2 mesas de 4 lugares cada, totalizando 8 lugares no campo de visão da ESP32-CAM.",
+    "descricao": "Sala-piloto da BGUM monitorizada pelo nó de visão: 1 mesa de 4 lugares no campo de visão da ESP32-CAM (canto junto à janela).",
     "zonas": [
-      { "id": "M1", "nome": "Mesa 1", "lugares": 4, "monitorizada": true, "x": 15, "y": 25, "w": 30, "h": 50, "mesas": 1 },
-      { "id": "M2", "nome": "Mesa 2", "lugares": 4, "monitorizada": true, "x": 55, "y": 25, "w": 30, "h": 50, "mesas": 1 }
+      { "id": "M1", "nome": "Mesa 1", "lugares": 4, "monitorizada": true, "x": 30, "y": 25, "w": 40, "h": 50, "mesas": 1 }
     ]
   }
 }

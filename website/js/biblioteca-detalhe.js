@@ -16,7 +16,6 @@ let _chartTarget = "temperature";
 let _chartUnit   = "";       // mantido sempre sincronizado com o último fetch
 let _chartTimer  = null;
 let _prev       = {};   // últimas leituras para calcular tendência
-let _camLayout  = null; // layout descoberto pelo detector (ou null em modo demo)
 
 /* Limiares percentuais (do valor anterior) abaixo dos quais a tendência
    é considerada "estável" — evita setas a tremer com micro-flutuações. */
@@ -85,11 +84,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderShell();
 
   if (_libObj.sensorizacao) {
-    // Layout descoberto: carrega uma vez (não muda com o tempo).
-    const roomId = _libObj.api_room_id || _libObj.id;
-    _camLayout = await SDB.fetchLayout(roomId);
-    renderCameraView(_camLayout);
-
     await refreshSensorData();
     _pollTimer = setInterval(refreshSensorData, SDB.REFRESH_INTERVAL);
 
@@ -446,27 +440,27 @@ function renderSensorBlock() {
       </div>
     </div>
 
-    <!-- Vista da câmara: planta detalhada por cadeira (layout descoberto pelo detector) -->
+    <!-- Sensores ambientais -->
     <div class="panel" style="margin-top: 20px;">
-      <h2><i class="fa-solid fa-camera"></i>Vista da câmara — ocupação por cadeira</h2>
-      <p style="font-size: 13px; color: var(--text-muted); margin: -6px 0 8px;">
-        Layout descoberto automaticamente pelo detector na primeira imagem
-        capturada (assumida sala vazia). Cada cadeira é marcada como
-        <em>ocupada</em> quando há uma pessoa, mochila, livro ou portátil
-        dentro da sua bounding box — incluindo o caso de "pausa" (mesa
-        reservada com objetos mas sem pessoa).
+      <h2><i class="fa-solid fa-temperature-half"></i>Conforto ambiental</h2>
+      <p style="font-size: 13px; color: var(--text-muted); margin: -6px 0 12px;">
+        Nó ambiental ESP32-S3 com sensores DHT11 (temp./hum.), MQ-135 (qualidade do ar), fotodíodo LM393 (iluminância) e microfone MEMS I2S MSM261S4030H0 (ruído), a transmitir para Firebase a cada 30 s.
       </p>
 
-      <div class="camview-wrap" id="camview-wrap">
-        <div class="camview-empty" id="camview-empty">
-          O detector ainda não descobriu o layout desta sala. Será descoberto
-          na primeira imagem capturada pela ESP32-CAM.
-        </div>
+      <div class="sensor-grid" id="sensor-grid">
+        <!-- preenchido por JS -->
       </div>
+    </div>
 
-      <div class="camview-legend">
-        <span><span class="swatch free"></span>Livre</span>
-        <span><span class="swatch occupied"></span>Ocupada (pessoa ou objeto)</span>
+    <!-- Estatísticas do dia -->
+    <div class="panel" style="margin-top: 20px;">
+      <h2><i class="fa-solid fa-chart-pie"></i>Estatísticas das últimas 24h</h2>
+      <p style="font-size: 13px; color: var(--text-muted); margin: -6px 0 12px;">
+        Métricas agregadas a partir do histórico do Firebase. Atualiza a cada
+        minuto.
+      </p>
+      <div class="stats-grid" id="stats-grid">
+        <div class="loading">A calcular estatísticas…</div>
       </div>
     </div>
 
@@ -499,102 +493,7 @@ function renderSensorBlock() {
         <canvas id="history-chart"></canvas>
       </div>
     </div>
-
-    <!-- Estatísticas do dia -->
-    <div class="panel" style="margin-top: 20px;">
-      <h2><i class="fa-solid fa-chart-pie"></i>Estatísticas das últimas 24h</h2>
-      <p style="font-size: 13px; color: var(--text-muted); margin: -6px 0 12px;">
-        Métricas agregadas a partir do histórico do Firebase. Atualiza a cada
-        minuto.
-      </p>
-      <div class="stats-grid" id="stats-grid">
-        <div class="loading">A calcular estatísticas…</div>
-      </div>
-    </div>
-
-    <!-- Sensores ambientais -->
-    <div class="panel" style="margin-top: 20px;">
-      <h2><i class="fa-solid fa-temperature-half"></i>Conforto ambiental</h2>
-      <p style="font-size: 13px; color: var(--text-muted); margin: -6px 0 12px;">
-        Nó ambiental ESP32-S3 com sensores DHT11 (temp./hum.), MQ-135 (qualidade do ar), fotodíodo LM393 (iluminância) e microfone MEMS I2S MSM261S4030H0 (ruído), a transmitir para Firebase a cada 30 s.
-      </p>
-
-      <div class="sensor-grid" id="sensor-grid">
-        <!-- preenchido por JS -->
-      </div>
-    </div>
   `;
-}
-
-/* ============================================================
-   Vista da câmara — render do layout descoberto pelo detector
-   ============================================================
-   O layout vem normalizado em [0..1] da resolução da imagem da ESP32-CAM.
-   Convertemos para percentagens de tamanho do contentor (CSS) e desenhamos:
-     - rectângulos tracejados para cada mesa (apenas visual)
-     - círculos para cada cadeira (cor depende de chair_states do live data)
-*/
-function renderCameraView(layout) {
-  const wrap = document.getElementById("camview-wrap");
-  if (!wrap) return;
-
-  if (!layout || !layout.chairs || layout.chairs.length === 0) {
-    // Mantém a mensagem "ainda não descoberto"
-    return;
-  }
-  // Remove o placeholder
-  const empty = document.getElementById("camview-empty");
-  if (empty) empty.remove();
-
-  // Mesas em baixo (z-index 0), cadeiras por cima (z-index 1).
-  // Tamanho relativo da cadeira: usamos a diagonal normalizada como guia.
-  const pieces = [];
-  for (const t of (layout.tables || [])) {
-    const left   = (t.x * 100).toFixed(2);
-    const top    = (t.y * 100).toFixed(2);
-    const width  = (t.w * 100).toFixed(2);
-    const height = (t.h * 100).toFixed(2);
-    pieces.push(`
-      <div class="camview-table" id="camtbl-${t.id}"
-           style="left:${left}%; top:${top}%; width:${width}%; height:${height}%;">
-        <span class="camview-table-label">${t.id}</span>
-      </div>
-    `);
-  }
-  for (const c of layout.chairs) {
-    // Tamanho da bolinha: aproximadamente o menor lado do box, com piso de 18px.
-    const sz   = Math.max(18, Math.min(c.w, c.h) * 100 * 0.6);
-    const left = (c.cx * 100).toFixed(2);
-    const top  = (c.cy * 100).toFixed(2);
-    pieces.push(`
-      <div class="camview-chair" id="camch-${c.id}"
-           data-chair-id="${c.id}"
-           style="left:calc(${left}% - ${sz/2}px); top:calc(${top}% - ${sz/2}px);
-                  width:${sz}px; height:${sz}px;">
-        ${c.id}
-        <span class="camview-chair-tooltip" id="camch-${c.id}-tt">Livre</span>
-      </div>
-    `);
-  }
-  wrap.innerHTML = pieces.join("");
-}
-
-function paintChairStates(d) {
-  // Live update das cadeiras: só funciona se o layout já foi descoberto E se
-  // o detector já está a produzir chair_states (formato novo do payload).
-  if (!_camLayout || !Array.isArray(d.chair_states) || d.chair_states.length === 0) {
-    return;
-  }
-  for (const s of d.chair_states) {
-    const node = document.getElementById(`camch-${s.id}`);
-    if (!node) continue;
-    const occ = !!s.occupied;
-    node.classList.toggle("occupied", occ);
-    const tt = document.getElementById(`camch-${s.id}-tt`);
-    if (tt) {
-      tt.textContent = occ ? `Ocupada · ${s.by || "objeto"}` : "Livre";
-    }
-  }
 }
 
 /* HTML de uma zona da planta */
@@ -620,7 +519,6 @@ async function refreshSensorData() {
   const data   = await SDB.fetchRoom(roomId);
   paintOccupancy(data);
   paintZone(data);
-  paintChairStates(data);
   paintSensors(data);
   paintMeta(data);
 }

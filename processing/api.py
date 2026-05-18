@@ -49,15 +49,19 @@ def to_public_id(internal_id: str) -> str:
 # ============================================================
 # Classificação de ocupação — 5 estados, para o frontend
 # ============================================================
-def compute_status_5(count: int, capacity: int) -> str:
+def compute_status_5(occupied: int, capacity: int) -> str:
     """
     Mapeamento percentual baseado em UX (5 níveis para badges de cor).
     Usado pelo website e pela app. Independente do estado simplificado
     (3 níveis) que o firmware do LED consome.
+
+    `occupied` é o nº de CADEIRAS ocupadas (pessoas + objetos sem dono),
+    não o nº de pessoas — para bater certo com o LED quando alguém deixa
+    as coisas em pausa.
     """
-    if capacity <= 0 or count <= 0:
+    if capacity <= 0 or occupied <= 0:
         return "vazio"
-    pct = count / capacity
+    pct = occupied / capacity
     if pct >= 0.95:
         return "cheio"
     if pct >= 0.75:
@@ -82,10 +86,9 @@ def build_room_payload(internal_id: str) -> dict | None:
     occ = (snap.get("occupancy") or {}).get("current") or {}
     env = (snap.get("environment") or {}).get("current") or {}
 
-    count    = int(occ.get("people", 0) or 0)
     capacity = int(occ.get("capacity", 0) or 0)
-    status_3 = occ.get("status")                        # "livre" | "parcial" | "cheio"
-    status_5 = compute_status_5(count, capacity)
+    people   = int(occ.get("people",   0) or 0)              # nº de pessoas físicas detetadas
+    status_3 = occ.get("status")                              # "livre" | "parcial" | "cheio"
 
     # Timestamp: prefere o da ocupação (mais recente em geral), caindo para o
     # do ambiente, caindo para "now".
@@ -99,14 +102,21 @@ def build_room_payload(internal_id: str) -> dict | None:
     table_states = occ.get("table_states") or []
     chairs_occupied = int(occ.get("chairs_occupied", sum(1 for c in chair_states if c.get("occupied"))) or 0)
 
+    # `count` no contrato é o número de LUGARES ocupados (= chairs_occupied),
+    # não de pessoas. Isto garante que a UI mostra "1/4 ocupados" quando
+    # alguém deixou o portátil em pausa, em vez de "0/4 vazio".
+    # O `status_5` segue a mesma lógica para manter a UX alinhada com o LED.
+    count    = chairs_occupied
+    status_5 = compute_status_5(chairs_occupied, capacity)
+
     return {
         # Identificação
         "room_id":      to_public_id(internal_id),
         "timestamp":    timestamp,
 
         # Ocupação agregada
-        "count":            count,                              # nº de pessoas (alias "people")
-        "people":           count,                              # alias para retro-compat
+        "count":            count,                              # nº de LUGARES ocupados (= chairs_occupied)
+        "people":           people,                             # nº de pessoas físicas detetadas
         "capacity":         capacity,
         "tables":           int(occ.get("tables", 0) or 0),
         "chairs_total":     int(occ.get("chairs_total", 0) or 0),
