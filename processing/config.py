@@ -74,7 +74,14 @@ YOLO_CLASSES = OCCUPIER_CLASSES + FURNITURE_CLASSES
 # Filtros por classe APLICADOS DEPOIS da inferência (ver detector.py).
 # Pessoa exigente (evita confundir cartazes/sombras). Objetos pequenos com
 # threshold mais baixo (saem com confiança menor mesmo quando bem detetados).
-# Mobiliário moderado: usado uma vez na descoberta, não vale a pena ser estrito.
+#
+# Mobília (chair/couch/table): threshold MUITO BAIXO. Em runtime a mobília
+# só serve para o desenho debug em temp_images/_annotated/ — a contagem de
+# ocupação usa o LAYOUT guardado em rooms/<id>/layout, não as detecções
+# em tempo real de cadeiras. Por isso podemos ser permissivos sem afetar
+# a precisão da ocupação. Em ângulos cenitais com pouca silhueta visível
+# (ex.: sala vazia sem objetos sobre a mesa), o YOLO frequentemente baixa
+# a confiança da cadeira para 0.15–0.20 — esse é o piso que aceitamos.
 YOLO_CONF_PER_CLASS = {
     0:  0.55,   # person
     24: 0.30,   # backpack
@@ -84,9 +91,9 @@ YOLO_CONF_PER_CLASS = {
     63: 0.40,   # laptop
     67: 0.40,   # cell phone
     73: 0.35,   # book
-    56: 0.25,   # chair        — usado na descoberta de layout
-    57: 0.30,   # couch        — idem
-    60: 0.25,   # dining_table — idem
+    56: 0.10,   # chair        — só usado em debug visual
+    57: 0.15,   # couch        — só usado em debug visual
+    60: 0.10,   # dining_table — só usado em debug visual
 }
 
 # Critérios para considerar uma deteção como "estando" numa cadeira.
