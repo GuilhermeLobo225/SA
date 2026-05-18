@@ -32,6 +32,7 @@ from ultralytics import YOLO
 from config import (
     YOLO_MODEL, YOLO_CONFIDENCE, YOLO_IOU_THRESHOLD, YOLO_CLASSES,
     YOLO_CONF_PER_CLASS, OCCUPIER_CLASSES, FURNITURE_CLASSES,
+    DISTRACTOR_CLASSES, OCCUPIER_BBOX_LIMITS, PERSON_DEDUP_IOU,
     CHAIR_PROXIMITY_FACTOR, CHAIR_IOC_MIN, LAYOUT_DISCOVERY_FRAMES,
     ROOM_CAPACITY, ROOM_TABLES, CHAIRS_PER_TABLE,
     LOCAL_TEMP_DIR, ROOM_ID,
@@ -47,9 +48,13 @@ logger = logging.getLogger(__name__)
 
 # Nomes amigáveis das classes do COCO que tratamos.
 CLASS_NAMES = {
+    # ocupadores
     0: "person", 24: "backpack", 26: "handbag", 28: "suitcase",
-    39: "bottle", 56: "chair", 57: "couch", 60: "dining_table",
-    63: "laptop", 67: "cell_phone", 73: "book",
+    39: "bottle", 63: "laptop", 67: "cell_phone", 73: "book",
+    # mobiliário
+    56: "chair", 57: "couch", 60: "dining_table",
+    # distratores (detetados para absorver falsos positivos, NÃO ocupam)
+    41: "cup", 45: "bowl", 62: "tv", 64: "mouse", 65: "remote", 66: "keyboard",
 }
 
 
@@ -143,7 +148,9 @@ class OccupancyDetector:
 
         occupier_dets: list[dict] = []
         detections_log: list[dict] = []
+        rejected_log:   list[dict] = []
         h_img, w_img = img.shape[:2]
+        img_area = float(w_img * h_img)
 
         for r in results:
             for box in r.boxes:
@@ -161,7 +168,28 @@ class OccupancyDetector:
                     "conf": round(conf, 3),
                     "box":  [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)],
                 })
+
+                # Distratores (mouse/remote/keyboard/...): só servem para
+                # o YOLO ter para onde rotular objetos pequenos sem os
+                # confundir com cell_phone. Não entram em occupier_dets.
+                if cls in DISTRACTOR_CLASSES:
+                    continue
+
                 if cls in OCCUPIER_CLASSES:
+                    # Sanity-check de tamanho: rejeita detecções absurdas
+                    # (pessoas em cartazes minúsculos, "cell_phones" do
+                    # tamanho da mesa, laptops com 5px, etc.).
+                    box_area_frac = ((x2 - x1) * (y2 - y1)) / img_area
+                    lo, hi = OCCUPIER_BBOX_LIMITS.get(cls, (0.0, 1.0))
+                    if box_area_frac < lo or box_area_frac > hi:
+                        rejected_log.append({
+                            "cls": cls, "conf": round(conf, 3),
+                            "reason": "tamanho",
+                            "area_frac": round(box_area_frac, 4),
+                            "limits": (lo, hi),
+                        })
+                        continue
+
                     # Guardamos o box completo (em coords normalizadas) para
                     # podermos depois calcular IoU/IoC com as cadeiras.
                     occupier_dets.append({
@@ -180,6 +208,12 @@ class OccupancyDetector:
                         "bcy": y2 / h_img,
                     })
 
+        # Deduplicação de pessoas: se o YOLO devolveu dois boxes do mesmo
+        # indivíduo (pode acontecer quando duas pessoas se cruzam ou uma
+        # está parcialmente tapada), mantemos só o de maior confiança.
+        # Implementação: NMS simples por IoU restrito à classe person.
+        occupier_dets = _dedup_persons(occupier_dets, PERSON_DEDUP_IOU)
+
         # Guarda o frame anotado para inspeção visual
         annotated_path = None
         if SAVE_ANNOTATED_IMAGES:
@@ -196,6 +230,13 @@ class OccupancyDetector:
             for d in detections_log:
                 name = CLASS_NAMES.get(d["cls"], str(d["cls"]))
                 logger.info("  · %s conf=%.2f box=%s", name, d["conf"], d["box"])
+        if rejected_log:
+            for d in rejected_log:
+                name = CLASS_NAMES.get(d["cls"], str(d["cls"]))
+                logger.info(
+                    "  ✗ %s conf=%.2f REJEITADO (%s, area=%.4f fora de %s)",
+                    name, d["conf"], d["reason"], d["area_frac"], d["limits"],
+                )
 
         return self._build_result(image_path, occupier_dets, annotated_path)
 
@@ -514,6 +555,44 @@ def _box_intersection_area(a: dict, b: dict) -> float:
     if ix2 <= ix1 or iy2 <= iy1:
         return 0.0
     return (ix2 - ix1) * (iy2 - iy1)
+
+
+def _box_iou(a: dict, b: dict) -> float:
+    """IoU de dois boxes (formato x, y, w, h normalizado)."""
+    inter = _box_intersection_area(a, b)
+    if inter <= 0.0:
+        return 0.0
+    union = a["w"] * a["h"] + b["w"] * b["h"] - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _dedup_persons(dets: list[dict], iou_threshold: float) -> list[dict]:
+    """
+    NMS restrito à classe `person`. Mantém o box de maior confiança quando
+    dois ou mais boxes da mesma pessoa se sobrepõem acima de `iou_threshold`.
+    Devolve a lista com pessoas deduplicadas + todos os objetos (não-pessoa)
+    intactos.
+    """
+    persons = [d for d in dets if d["cls"] == 0]
+    others  = [d for d in dets if d["cls"] != 0]
+    if len(persons) <= 1:
+        return dets
+
+    persons_sorted = sorted(persons, key=lambda d: d["conf"], reverse=True)
+    kept: list[dict] = []
+    for p in persons_sorted:
+        duplicate = False
+        for k in kept:
+            if _box_iou(p, k) >= iou_threshold:
+                duplicate = True
+                logger.info(
+                    "  ✗ person conf=%.2f REJEITADO (duplicado, IoU≥%.2f com kept conf=%.2f)",
+                    p["conf"], iou_threshold, k["conf"],
+                )
+                break
+        if not duplicate:
+            kept.append(p)
+    return kept + others
 
 
 if __name__ == "__main__":

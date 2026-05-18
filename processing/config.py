@@ -47,7 +47,7 @@ YOLO_MODEL = "yolo11x.pt"        # versão extra-large do YOLOv11 — máxima pr
 YOLO_CONFIDENCE = 0.30           # threshold base fallback (classes sem entrada no dict)
 YOLO_IOU_THRESHOLD = 0.5
 
-# Classes ativas no YOLO. Há TRÊS papéis distintos:
+# Classes ativas no YOLO. Há QUATRO papéis distintos:
 #
 #  (1) Mobiliário fixo — usado UMA VEZ no arranque para descobrir o layout
 #      da sala (ver processing/layout_discovery.py). Depois disso só serve
@@ -67,9 +67,23 @@ YOLO_IOU_THRESHOLD = 0.5
 #        63 = laptop
 #        67 = cell phone
 #        73 = book
+#
+#  (3) "Distratores" — classes incluídas APENAS na inferência (não em
+#      OCCUPIER_CLASSES). Servem para o YOLO conseguir rotular objetos
+#      pequenos retangulares (rato, comando, teclado, tigela) na sua
+#      classe correta em vez de os forçar a `cell_phone` (que era a única
+#      classe pequena disponível e por isso "absorvia" todos os falsos).
+#      Estas classes NÃO ocupam cadeiras — só evitam a confusão.
+#        64 = mouse        (ratos de computador)
+#        65 = remote       (comandos, carregadores parecidos)
+#        66 = keyboard     (teclados)
+#        41 = cup          (canecas que se confundem com bottle)
+#        45 = bowl         (tigelas que se confundem com livro/laptop)
+#        62 = tv           (monitores: evita confusão com laptop)
 OCCUPIER_CLASSES   = [0, 24, 26, 28, 39, 63, 67, 73]
 FURNITURE_CLASSES  = [56, 57, 60]
-YOLO_CLASSES = OCCUPIER_CLASSES + FURNITURE_CLASSES
+DISTRACTOR_CLASSES = [41, 45, 62, 64, 65, 66]   # detetadas, mas ignoradas
+YOLO_CLASSES = OCCUPIER_CLASSES + FURNITURE_CLASSES + DISTRACTOR_CLASSES
 
 # Filtros por classe APLICADOS DEPOIS da inferência (ver detector.py).
 # Pessoa exigente (evita confundir cartazes/sombras). Objetos pequenos com
@@ -83,18 +97,68 @@ YOLO_CLASSES = OCCUPIER_CLASSES + FURNITURE_CLASSES
 # (ex.: sala vazia sem objetos sobre a mesa), o YOLO frequentemente baixa
 # a confiança da cadeira para 0.15–0.20 — esse é o piso que aceitamos.
 YOLO_CONF_PER_CLASS = {
-    0:  0.55,   # person
-    24: 0.30,   # backpack
-    26: 0.30,   # handbag
-    28: 0.30,   # suitcase
-    39: 0.35,   # bottle
-    63: 0.40,   # laptop
-    67: 0.40,   # cell phone
-    73: 0.35,   # book
-    56: 0.10,   # chair        — só usado em debug visual
-    57: 0.15,   # couch        — só usado em debug visual
-    60: 0.10,   # dining_table — só usado em debug visual
+    # --- ocupadores ---
+    # Person: BAIXADO de 0.55 → 0.40. Em ângulo cenital a 2ª pessoa do
+    # fundo (parcialmente tapada pela primeira) costuma sair com conf
+    # entre 0.40 e 0.60. A 0.55 era frequentemente perdida, fazendo com
+    # que a sala reportasse 1 pessoa em vez de 2. O risco de falsos
+    # positivos (cartazes, fotografias na parede) é mitigado pelo
+    # PERSON_MIN_BBOX_AREA mais abaixo.
+    0:  0.40,   # person
+    24: 0.35,   # backpack
+    26: 0.35,   # handbag
+    28: 0.35,   # suitcase
+    39: 0.40,   # bottle  (subido — confunde-se com canecas e copos)
+    63: 0.45,   # laptop  (subido — confunde-se com livros/tablets)
+    # Cell phone: SUBIDO de 0.40 → 0.70. Era a classe responsável pela
+    # maior parte dos falsos positivos — carregadores, ratos, comandos
+    # e estojos de óculos eram todos rotulados como cell_phone porque
+    # era a única classe pequena retangular ativa. Combinado com as
+    # DISTRACTOR_CLASSES (mouse/remote/keyboard) e o sanity-check de
+    # tamanho no detector, fica drasticamente mais robusto.
+    67: 0.70,   # cell phone
+    73: 0.40,   # book   (subido — confunde-se com tablets e revistas)
+
+    # --- mobiliário (só debug visual) ---
+    56: 0.10,   # chair
+    57: 0.15,   # couch
+    60: 0.10,   # dining_table
+
+    # --- distratores (detetados para absorver falsos positivos) ---
+    # Mantemos thresholds relativamente baixos: queremos que estas
+    # classes ABSORVAM rotulações erradas que de outra forma cairiam
+    # em cell_phone/laptop/book. Não entram em OCCUPIER_CLASSES, por
+    # isso não contam para a ocupação.
+    41: 0.25,   # cup
+    45: 0.25,   # bowl
+    62: 0.30,   # tv / monitor
+    64: 0.25,   # mouse
+    65: 0.25,   # remote
+    66: 0.25,   # keyboard
 }
+
+# Sanity-checks de tamanho de bbox (em fração da área da imagem).
+# Aplicados no detector DEPOIS da inferência, antes de o ocupador entrar
+# na lista para atribuição a cadeira. Detecções fora do intervalo são
+# descartadas — protegem contra: pessoas "vistas" em cartazes
+# (demasiado pequenas), objetos confundidos com a mesa toda (demasiado
+# grandes), e laptops do tamanho de uma bolacha (provavelmente livros).
+OCCUPIER_BBOX_LIMITS = {
+    0:  (0.010, 0.70),   # person:    >=1.0% e <=70% da imagem
+    24: (0.003, 0.30),   # backpack
+    26: (0.002, 0.20),   # handbag
+    28: (0.005, 0.30),   # suitcase
+    39: (0.0005, 0.05),  # bottle:    objeto pequeno
+    63: (0.005, 0.35),   # laptop:    objeto médio (ecrã visível)
+    67: (0.0008, 0.04),  # cell phone: pequeno e fino, NUNCA enorme
+    73: (0.002, 0.15),   # book
+}
+
+# Deduplicação entre pessoas: quando dois boxes "person" se sobrepõem
+# acima deste IoU, mantemos só o de maior confiança. Protege contra
+# o YOLO devolver dois boxes para a mesma pessoa quando ela aparece
+# parcialmente tapada (raro, mas acontece em ângulo cenital).
+PERSON_DEDUP_IOU = 0.55
 
 # Critérios para considerar uma deteção como "estando" numa cadeira.
 # A câmara está em ângulo cenital — o que significa que objetos sobre a mesa
