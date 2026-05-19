@@ -233,7 +233,7 @@ class OccupancyDetector:
                 # Bottom-center da bbox em coords normalizadas — robusto
                 # sob ângulo lateral (câmara num canto da sala).
                 bx = ((x1 + x2) / 2.0) / w_img
-                by = y2 / h_img
+                by = ((y1 + y2) / 2.0) / h_img
                 table = self._nearest_table(bx, by)
 
                 if cls == 0:
