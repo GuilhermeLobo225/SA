@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("forecasting")
 
 DATA_DIR = Path(__file__).parent / "data"
-RESAMPLE_RULE = "1min"   # uniformiza espaçamento temporal (Sensor envia a cada 30s)
+RESAMPLE_RULE = "5min"   # 5 min de granularidade — mais rápido e suficiente para forecasts a horas
 
 
 # ============================================================
@@ -105,8 +105,8 @@ def predict_holt_winters(train: pd.Series, test_index: pd.DatetimeIndex) -> pd.S
         log.warning("statsmodels em falta — pip install statsmodels")
         return pd.Series([np.nan] * len(test_index), index=test_index)
 
-    # 1 dia = 1440 minutos (com RESAMPLE_RULE = '1min')
-    seasonal_periods = 24 * 60
+    # 1 dia = 288 buckets de 5 min (com RESAMPLE_RULE = '5min')
+    seasonal_periods = 24 * 60 // 5
     if len(train) < 2 * seasonal_periods:
         log.warning("Holt-Winters precisa de >=2 dias de dados; saltando.")
         return pd.Series([np.nan] * len(test_index), index=test_index)
@@ -208,6 +208,111 @@ def predict_lstm(train: pd.Series, test_index: pd.DatetimeIndex,
 
 
 # ============================================================
+# Persistência de modelos treinados (--save)
+# ============================================================
+MODELS_DIR = Path(__file__).parent / "models"
+
+# Targets cujos modelos vamos servir online via forecast_service.py.
+# Excluímos "people" — é errático, fora do âmbito desta sprint.
+SAVE_TARGETS = ("temperature", "humidity", "air_quality_raw", "noise_db")
+
+
+def _train_and_save(target: str, test_hours: float) -> dict:
+    """
+    Treina um modelo Holt-Winters (com sazonalidade diária) no dataset
+    COMPLETO, avalia num holdout final de `test_hours` horas, e persiste:
+      - models/<target>.pkl       → o objeto `HoltWintersResults` serializado
+                                     (statsmodels nativo via .save()).
+      - models/<target>.meta.json → metadados: MAE/RMSE no holdout, nº de
+                                     pontos, janela de treino, modelo, data.
+
+    Se Holt-Winters falhar (poucos dados), regista "naive" como modelo e
+    NÃO persiste pkl — a inferência online cairá para o fluxo legacy de
+    forecast_service.py (que tenta HW → SES → naive em runtime).
+    """
+    import json
+    from datetime import datetime
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+    s = load_series(target)
+    if s.empty:
+        raise SystemExit(f"Sem dados para target '{target}'.")
+
+    # 1) Holdout só para AVALIAR.
+    train, test = train_test_split(s, test_hours=test_hours)
+    p_hw = predict_holt_winters(train, test.index)
+
+    has_hw = not p_hw.dropna().empty
+    meta = {
+        "target":         target,
+        "trained_at":     datetime.now().isoformat(timespec="seconds"),
+        "n_points":       int(len(s)),
+        "train_from":     str(s.index.min()),
+        "train_to":       str(s.index.max()),
+        "resample_rule":  RESAMPLE_RULE,
+        "holdout_hours":  test_hours,
+        "holdout_pts":    int(len(test)),
+        "model":          "holt-winters" if has_hw else "naive",
+    }
+    if has_hw:
+        meta["mae"]  = round(mae(test.values,  p_hw.values), 4)
+        meta["rmse"] = round(rmse(test.values, p_hw.values), 4)
+    else:
+        meta["mae"]  = None
+        meta["rmse"] = None
+        meta["note"] = "Holt-Winters falhou (provavelmente <2 dias de dados); sem pkl persistido."
+
+    # 2) Refit no DATASET INTEIRO antes de persistir — para inferência ter
+    #    o máximo de contexto possível, não só a parte de treino do split.
+    if has_hw:
+        from statsmodels.tsa.holtwinters import ExponentialSmoothing
+        seasonal_periods = 24 * 60 // 5
+        full_model = ExponentialSmoothing(
+            s.values,
+            trend="add",
+            seasonal="add",
+            seasonal_periods=seasonal_periods,
+            initialization_method="estimated",
+        ).fit()
+        pkl_path = MODELS_DIR / f"{target}.pkl"
+        full_model.save(str(pkl_path))
+        meta["pkl_size_kb"] = round(pkl_path.stat().st_size / 1024, 1)
+        meta["pkl_path"]    = str(pkl_path.relative_to(MODELS_DIR.parent.parent))
+        log.info("✓ Modelo Holt-Winters persistido em %s (%.1f KB) — MAE=%.3f",
+                 pkl_path, meta["pkl_size_kb"], meta["mae"])
+    else:
+        log.warning("Holt-Winters não convergiu para '%s' — só metadata.", target)
+
+    meta_path = MODELS_DIR / f"{target}.meta.json"
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(meta, f, indent=2)
+    log.info("  Metadata: %s", meta_path)
+    return meta
+
+
+def save_all(targets: list[str] | None, test_hours: float):
+    """Treina e persiste modelos para uma lista de targets (default: SAVE_TARGETS)."""
+    tgts = list(targets) if targets else list(SAVE_TARGETS)
+    results = []
+    for t in tgts:
+        log.info("=== A treinar/guardar modelo para target '%s' ===", t)
+        try:
+            results.append(_train_and_save(t, test_hours))
+        except Exception as e:
+            log.error("Falha em '%s': %s", t, e)
+    print()
+    print("=" * 60)
+    print(f"{'Target':<22}{'Modelo':<14}{'MAE':>10}{'PKL (KB)':>12}")
+    print("-" * 60)
+    for m in results:
+        mae_v = f"{m['mae']:.3f}" if m.get("mae") is not None else "—"
+        pkl_v = f"{m.get('pkl_size_kb', 0):.1f}" if m.get("pkl_size_kb") else "—"
+        print(f"{m['target']:<22}{m['model']:<14}{mae_v:>10}{pkl_v:>12}")
+    print("=" * 60)
+    return 0
+
+
+# ============================================================
 # Runner
 # ============================================================
 def main(target: str, test_hours: float, plot: bool,
@@ -292,5 +397,14 @@ if __name__ == "__main__":
                     help="ISO date — usar apenas pontos a partir desta data")
     ap.add_argument("--data-to",   type=str, default=None,
                     help="ISO date — usar apenas pontos ANTES desta data (exclusivo)")
+    ap.add_argument("--save", action="store_true",
+                    help=("Treina e persiste o modelo em ml/models/. "
+                          "Se --target=all, treina os 4 ambientais."))
     a = ap.parse_args()
+
+    if a.save:
+        targets = None if a.target == "all" else [a.target]
+        sys.exit(save_all(targets, a.horizon))
+    if a.target == "all":
+        ap.error("--target=all só funciona em conjunto com --save.")
     sys.exit(main(a.target, a.horizon, a.plot, a.data_from, a.data_to))

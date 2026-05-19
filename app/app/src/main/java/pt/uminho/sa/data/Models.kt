@@ -149,3 +149,34 @@ data class HistoryResponse(
     val hasData: Boolean get() = history.isNotEmpty()
     val hasForecast: Boolean get() = forecast.isNotEmpty()
 }
+
+/* ---------- Estatísticas (vêm de /api/rooms/{id}/stats?hours=24) ---------- */
+
+/** Resumo numérico de uma métrica (min/máx/média/mediana). */
+data class StatBlock(
+    val min: Double? = null,
+    val max: Double? = null,
+    val avg: Double? = null,
+    val median: Double? = null
+)
+
+/** Bloco específico para ocupação: percentagens por estado + pico. */
+data class OccupancyStats(
+    val pctLivre: Double? = null,
+    val pctParcial: Double? = null,
+    val pctCheio: Double? = null,
+    val peak: Double? = null
+)
+
+/**
+ * Resposta de /api/rooms/{id}/stats?hours=24.
+ * Cada bloco é opcional — a API pode não devolver tudo em modo demo.
+ */
+data class StatsResponse(
+    val occupancy: OccupancyStats? = null,
+    val temperature: StatBlock? = null,
+    val humidity: StatBlock? = null,
+    val airQuality: StatBlock? = null,
+    val noiseDb: StatBlock? = null,
+    val source: String = "mock"
+)

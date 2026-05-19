@@ -27,6 +27,8 @@ import pt.uminho.sa.data.Biblioteca
 import pt.uminho.sa.data.Config
 import pt.uminho.sa.data.HistoryResponse
 import pt.uminho.sa.data.RoomData
+import pt.uminho.sa.data.StatBlock
+import pt.uminho.sa.data.StatsResponse
 import pt.uminho.sa.databinding.ActivityBibliotecaDetalheBinding
 import pt.uminho.sa.databinding.ItemSensorTileBinding
 import pt.uminho.sa.geofence.GeofenceHandler
@@ -56,6 +58,9 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
 
     /** Job do refresh do painel de previsão (cadência mais lenta que o polling). */
     private var previsaoJob: Job? = null
+
+    /** Job do refresh do painel de estatísticas 24h. */
+    private var statsJob: Job? = null
 
     private val geofenceHandler by lazy { GeofenceHandler(this) }
 
@@ -108,6 +113,7 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
         if (biblioteca.sensorizacao) {
             iniciarPolling()
             iniciarRefreshPrevisao()
+            iniciarRefreshStats()
         }
     }
 
@@ -116,6 +122,7 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
         // Pára os pollings para não gastar bateria com a app em background
         pollingJob?.cancel(); pollingJob = null
         previsaoJob?.cancel(); previsaoJob = null
+        statsJob?.cancel(); statsJob = null
     }
 
     /* ============================================================
@@ -201,6 +208,9 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
             b.fonteDados.setTextColor(ContextCompat.getColor(this, R.color.status_unknown))
         }
 
+        // --- Chip LED (estado simplificado lido pelo firmware) ---
+        atualizarChipLed(d.statusSimple)
+
         // --- Última leitura ---
         b.ultimaLeitura.text = getString(R.string.ultima_leitura, formatarHora(d.timestamp))
 
@@ -264,6 +274,13 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
                 label  = getString(R.string.sensor_ruido),
                 valor  = formatRuido(d),
                 alerta = ruidoAlerta
+            ),
+            // Mosaico "Conforto global" (espelha o tile do website)
+            SensorTile(
+                icone  = R.drawable.ic_info,
+                label  = getString(R.string.sensor_conforto),
+                valor  = d.comfort?.let { formatComfort(it) } ?: "—",
+                alerta = isBadComfort(d.comfort)
             )
         )
 
@@ -491,8 +508,128 @@ class BibliotecaDetalheActivity : AppCompatActivity() {
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
+    /* ============================================================
+       Chip LED (estado simplificado livre/parcial/cheio)
+       ============================================================ */
+    private fun atualizarChipLed(statusSimple: String?) {
+        val (txt, bg, fg) = when (statusSimple) {
+            "livre"   -> Triple(getString(R.string.led_livre),   R.color.status_free, R.color.text_strong)
+            "parcial" -> Triple(getString(R.string.led_parcial), R.color.status_mid,  R.color.text_strong)
+            "cheio"   -> Triple(getString(R.string.led_cheio),   R.color.status_full, R.color.text_on_red)
+            else      -> Triple("—", R.color.bg_surface, R.color.text_muted)
+        }
+        b.ledChip.text = "● ${getString(R.string.led_label)} $txt"
+        b.ledChip.setBackgroundColor(ContextCompat.getColor(this, bg))
+        b.ledChip.setTextColor(ContextCompat.getColor(this, fg))
+    }
+
+    /* ============================================================
+       Conforto global (mosaico extra alinhado com o website)
+       ============================================================ */
+    private fun formatComfort(c: String): String = when (c) {
+        "bom"      -> "Bom"
+        "moderado" -> "Moderado"
+        "mau"      -> "Mau"
+        else        -> c.replace('_', ' ').replaceFirstChar { it.uppercase() }
+    }
+    private fun isBadComfort(c: String?): Boolean = c == "mau" || c == "moderado"
+
+    /* ============================================================
+       Estatísticas das últimas 24 h
+       ============================================================ */
+    private fun iniciarRefreshStats() {
+        statsJob?.cancel()
+        statsJob = lifecycleScope.launch {
+            while (isActive) {
+                val roomId = biblioteca.apiRoomId ?: biblioteca.id
+                val s = withContext(Dispatchers.IO) { ApiClient.fetchStats(roomId, 24) }
+                renderStats(s)
+                delay(STATS_REFRESH_MS)
+            }
+        }
+    }
+
+    private fun renderStats(s: StatsResponse) {
+        val grid = b.gridStats
+        grid.removeAllViews()
+        val inflater = LayoutInflater.from(this)
+
+        fun fmt(v: Double?, decimais: Int = 1, suffix: String = ""): String {
+            if (v == null) return "—"
+            val n = if (decimais > 0) String.format(Locale.US, "%.${decimais}f", v)
+                    else              v.roundToInt().toString()
+            return if (suffix.isEmpty()) n else "$n $suffix"
+        }
+
+        val cards = mutableListOf<Triple<Int, String, List<Pair<String, String>>>>()
+
+        // Ocupação (% livre/parcial/cheio + pico)
+        s.occupancy?.let { o ->
+            cards += Triple(R.drawable.ic_users, getString(R.string.stats_ocupacao), listOf(
+                getString(R.string.stats_pct_livre)   to fmt(o.pctLivre,   0, "%"),
+                getString(R.string.stats_pct_parcial) to fmt(o.pctParcial, 0, "%"),
+                getString(R.string.stats_pct_cheio)   to fmt(o.pctCheio,   0, "%"),
+                getString(R.string.stats_pico)        to fmt(o.peak,       0)
+            ))
+        }
+        // Temperatura
+        s.temperature?.let { t ->
+            cards += Triple(R.drawable.ic_thermometer, getString(R.string.sensor_temperatura),
+                blocoRows(t, "°C", 1))
+        }
+        // Humidade
+        s.humidity?.let { h ->
+            cards += Triple(R.drawable.ic_info, getString(R.string.sensor_humidade),
+                blocoRows(h, "%", 0))
+        }
+        // Qualidade do ar
+        s.airQuality?.let { a ->
+            cards += Triple(R.drawable.ic_info, getString(R.string.sensor_qualidade_ar),
+                blocoRows(a, "ADC", 0))
+        }
+        // Ruído
+        s.noiseDb?.let { r ->
+            cards += Triple(R.drawable.ic_info, getString(R.string.sensor_ruido),
+                blocoRows(r, "dB", 1))
+        }
+
+        for ((icone, titulo, rows) in cards) {
+            val tileB = ItemSensorTileBinding.inflate(inflater, grid, false)
+            tileB.icone.setImageResource(icone)
+            tileB.label.text = titulo
+            // Aproveitamos o TextView do "valor" para empilhar as linhas
+            tileB.valor.text = rows.joinToString("\n") { "${it.first}: ${it.second}" }
+            tileB.valor.setTextColor(ContextCompat.getColor(this, R.color.text_strong))
+            tileB.valor.textSize = 12f
+            val lp = GridLayout.LayoutParams().apply {
+                width = 0
+                height = GridLayout.LayoutParams.WRAP_CONTENT
+                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1, 1f)
+                setMargins(dp(4), dp(4), dp(4), dp(4))
+            }
+            grid.addView(tileB.root, lp)
+        }
+    }
+
+    private fun blocoRows(s: StatBlock, unit: String, decimais: Int): List<Pair<String, String>> {
+        fun fmt(v: Double?): String {
+            if (v == null) return "—"
+            val n = if (decimais > 0) String.format(Locale.US, "%.${decimais}f", v)
+                    else              v.roundToInt().toString()
+            return "$n $unit"
+        }
+        return listOf(
+            getString(R.string.stats_media)   to fmt(s.avg),
+            getString(R.string.stats_mediana) to fmt(s.median),
+            getString(R.string.stats_maximo)  to fmt(s.max),
+            getString(R.string.stats_minimo)  to fmt(s.min)
+        )
+    }
+
     companion object {
         /** Refresh do painel de previsão (mais lento que o polling normal). */
         private const val PREVISAO_REFRESH_MS = 60_000L
+        /** Refresh do painel de estatísticas 24h (alinhado com o website). */
+        private const val STATS_REFRESH_MS = 60_000L
     }
 }

@@ -75,6 +75,59 @@ object ApiClient {
     }
 
     /* ============================================================
+       GET /api/rooms/{roomId}/stats?hours=24
+       ============================================================ */
+
+    suspend fun fetchStats(roomId: String, hours: Int = 24): StatsResponse = withContext(Dispatchers.IO) {
+        val url = "${Config.API_BASE}/rooms/$roomId/stats?hours=$hours"
+        val body = doGet(url) ?: return@withContext mockStats()
+        return@withContext try {
+            parseStatsJson(body)
+        } catch (e: Exception) {
+            Log.w(TAG, "Falhou parse de /stats (${e.javaClass.simpleName}: ${e.message})", e)
+            mockStats()
+        }
+    }
+
+    private fun parseStatsJson(body: String): StatsResponse {
+        val o = JSONObject(body)
+        return StatsResponse(
+            occupancy   = o.optJSONObject("occupancy")?.let {
+                OccupancyStats(
+                    pctLivre   = optDouble(it, "pct_livre"),
+                    pctParcial = optDouble(it, "pct_parcial"),
+                    pctCheio   = optDouble(it, "pct_cheio"),
+                    peak       = optDouble(it, "peak")
+                )
+            },
+            temperature = parseStatBlock(o.optJSONObject("temperature")),
+            humidity    = parseStatBlock(o.optJSONObject("humidity")),
+            airQuality  = parseStatBlock(o.optJSONObject("air_quality")),
+            noiseDb     = parseStatBlock(o.optJSONObject("noise_db")),
+            source      = "api"
+        )
+    }
+
+    private fun parseStatBlock(o: JSONObject?): StatBlock? {
+        if (o == null) return null
+        return StatBlock(
+            min    = optDouble(o, "min"),
+            max    = optDouble(o, "max"),
+            avg    = optDouble(o, "avg"),
+            median = optDouble(o, "median")
+        )
+    }
+
+    private fun mockStats(): StatsResponse = StatsResponse(
+        occupancy   = OccupancyStats(pctLivre = 60.0, pctParcial = 30.0, pctCheio = 10.0, peak = 4.0),
+        temperature = StatBlock(min = 20.4, max = 24.1, avg = 22.3, median = 22.4),
+        humidity    = StatBlock(min = 38.0, max = 56.0, avg = 47.0, median = 47.0),
+        airQuality  = StatBlock(min = 80.0, max = 420.0, avg = 220.0, median = 195.0),
+        noiseDb     = StatBlock(min = 28.5, max = 52.3, avg = 36.1, median = 34.8),
+        source      = "mock"
+    )
+
+    /* ============================================================
        HTTP plumbing
        ============================================================ */
 

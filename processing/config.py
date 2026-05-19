@@ -219,15 +219,47 @@ LAYOUT_CHAIR_MIN_CONF     = 0.20  # baixa este threshold só durante descoberta
 #
 # Para forçar nova descoberta: DELETE /api/rooms/<id>/layout (ou apagar
 # manualmente o nó `rooms/<id>/layout` no Firebase Console).
-ROOM_TABLES       = 1        # fallback: nº de mesas
-CHAIRS_PER_TABLE  = 4        # fallback: cadeiras por mesa
-ROOM_CAPACITY     = ROOM_TABLES * CHAIRS_PER_TABLE   # fallback derivado
+ROOM_TABLES       = 2        # nº de mesas no campo de visão da câmara
+CHAIRS_PER_TABLE  = 4        # cadeiras por mesa (assumido igual em todas)
+ROOM_CAPACITY     = ROOM_TABLES * CHAIRS_PER_TABLE   # derivado
 
-# Cenários TÍPICOS (só relevantes para o fallback / seed_synthetic):
-#   teste mínimo   : ROOM_TABLES=1, CHAIRS_PER_TABLE=1 → 1 cadeira (binário livre/cheio)
+# Cenários TÍPICOS:
+#   teste mínimo   : ROOM_TABLES=1, CHAIRS_PER_TABLE=1 → 1 cadeira
 #   teste em casa  : ROOM_TABLES=1, CHAIRS_PER_TABLE=4 → 4 cadeiras
 #   biblioteca BG  : ROOM_TABLES=2, CHAIRS_PER_TABLE=4 → 8 cadeiras
 #   maior          : ROOM_TABLES=5, CHAIRS_PER_TABLE=4 → 20 cadeiras
+
+# ============================================================
+# Posições das mesas (atribuição per-mesa por proximidade)
+# ============================================================
+# Lista de centroides de cada mesa em coordenadas NORMALIZADAS [0, 1]
+# relativas à imagem (origem no canto superior-esquerdo, x cresce para a
+# direita, y cresce para baixo). A ordem define o ID: primeira entrada =
+# T1, segunda = T2, etc.
+#
+# Como calibrar:
+#   1. Abre uma frame de referência (ex.: temp_images/<algo>.jpg).
+#   2. Para cada mesa visível, anota o pixel central (cx_px, cy_px).
+#   3. Divide por (largura, altura) da imagem para obter coords [0, 1].
+#
+# OVERRIDE MANUAL — normalmente esta lista fica VAZIA. O detector descobre
+# as posições das mesas automaticamente via YOLO (`layout_discovery.py`) na
+# primeira frame com sala vazia e persiste-as em `rooms/<id>/layout` no
+# Firebase. Como a câmara é estática, isto corre uma vez e basta.
+#
+# Só preenchas esta lista se a descoberta automática falhar (mesa muito
+# tapada por objetos, perspetiva difícil, etc.). Quando preenchida, TEM
+# PRIORIDADE sobre o layout descoberto.
+#
+# Exemplo para câmara num canto da sala, 2 mesas alinhadas:
+#   ROOM_TABLE_POSITIONS = [(0.32, 0.55), (0.70, 0.55)]
+ROOM_TABLE_POSITIONS: list[tuple[float, float]] = []
+
+# Distância máxima (em coords normalizadas) entre a bottom-center da deteção
+# e o centro da mesa para a atribuição ser válida. Acima deste valor, a
+# deteção é descartada (gente em circulação entre mesas, fora do campo útil).
+# 0.35 ≈ 1/3 da imagem — generoso. Reduzir se houver muitas atribuições erradas.
+TABLE_MAX_ASSIGN_DIST = 0.35
 
 # ============================================================
 # API REST

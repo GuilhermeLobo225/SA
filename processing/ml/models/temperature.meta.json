@@ -1,0 +1,15 @@
+{
+  "target": "temperature",
+  "trained_at": "2026-05-19T14:50:37",
+  "n_points": 4033,
+  "train_from": "2026-05-05 14:50:00",
+  "train_to": "2026-05-19 14:50:00",
+  "resample_rule": "5min",
+  "holdout_hours": 6.0,
+  "holdout_pts": 72,
+  "model": "holt-winters",
+  "mae": 0.1879,
+  "rmse": 0.2512,
+  "pkl_size_kb": 323.0,
+  "pkl_path": "ml\\models\\temperature.pkl"
+}

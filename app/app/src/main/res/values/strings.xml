@@ -40,6 +40,27 @@
     <string name="sensor_qualidade_ar">Qualidade do ar</string>
     <string name="sensor_iluminacao">Iluminância</string>
     <string name="sensor_ruido">Ruído</string>
+    <string name="sensor_conforto">Conforto global</string>
+
+    <!-- LED indicador (chip no cartão de ocupação) -->
+    <string name="led_label">LED:</string>
+    <string name="led_livre">Livre</string>
+    <string name="led_parcial">Parcial</string>
+    <string name="led_cheio">Cheio</string>
+
+    <!-- Estatísticas das últimas 24 h -->
+    <string name="stats_titulo">Estatísticas das últimas 24 h</string>
+    <string name="stats_descricao">Métricas agregadas a partir do histórico. Atualiza a cada minuto.</string>
+    <string name="stats_a_calcular">A calcular estatísticas…</string>
+    <string name="stats_ocupacao">Ocupação</string>
+    <string name="stats_pct_livre">🟢 Livre</string>
+    <string name="stats_pct_parcial">🟡 Parcial</string>
+    <string name="stats_pct_cheio">🔴 Cheio</string>
+    <string name="stats_pico">Pico</string>
+    <string name="stats_media">Média</string>
+    <string name="stats_mediana">Mediana</string>
+    <string name="stats_maximo">Máximo</string>
+    <string name="stats_minimo">Mínimo</string>
 
     <!-- Estados de ocupação -->
     <string name="estado_vazio">Vazio</string>

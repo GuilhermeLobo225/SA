@@ -1,0 +1,15 @@
+{
+  "target": "noise_db",
+  "trained_at": "2026-05-19T14:50:45",
+  "n_points": 4033,
+  "train_from": "2026-05-05 14:50:00",
+  "train_to": "2026-05-19 14:50:00",
+  "resample_rule": "5min",
+  "holdout_hours": 6.0,
+  "holdout_pts": 72,
+  "model": "holt-winters",
+  "mae": 3.7313,
+  "rmse": 4.4592,
+  "pkl_size_kb": 323.0,
+  "pkl_path": "ml\\models\\noise_db.pkl"
+}

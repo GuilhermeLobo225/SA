@@ -195,6 +195,11 @@ def get_occupancy(room_id):
         "occupancy_pct":  payload["occupancy_pct"],
         "status":         payload["status"],
         "status_simple":  payload["status_simple"],
+        # Estado per-mesa: lista de
+        # {id, capacity, occupied, free, people, objects, status}
+        # vinda do detector (atribuição por proximidade aos centroides
+        # definidos em ROOM_TABLE_POSITIONS).
+        "table_states":   payload["table_states"],
     })
 
 
@@ -387,7 +392,13 @@ def get_history(room_id):
         forecast_series_out = pd.Series(dtype=float)
         model = "n/a"
     else:
-        forecast_series_out, model = forecast_series(series, minutes_ahead=horizon)
+        # Passa `target` para o forecast_service poder usar o modelo
+        # persistido em ml/models/<target>.pkl (treinado offline via
+        # `python ml/forecasting.py --target <t> --save`). Se o checkpoint
+        # não existir, o serviço cai para refit online (HW → SES → naive).
+        forecast_series_out, model = forecast_series(
+            series, minutes_ahead=horizon, target=target,
+        )
 
     payload = {
         "target":   target,

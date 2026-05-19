@@ -192,6 +192,20 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <!-- Chip LED (estado simplificado lido pelo firmware) -->
+                    <TextView
+                        android:id="@+id/led_chip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/badge_monitored"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="4dp"
+                        android:textColor="@color/text_strong"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        tools:text="● LED: Parcial" />
+
                     <TextView
                         android:id="@+id/ultima_leitura"
                         android:layout_width="match_parent"
@@ -202,6 +216,56 @@
                         android:textSize="11sp"
                         android:textColor="@color/text_muted"
                         tools:text="Última leitura: 14:32:11" />
+                </LinearLayout>
+
+                <!-- Cartão Estatísticas das últimas 24 h -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:background="@drawable/card_background"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <ImageView
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:src="@drawable/ic_info"
+                            android:contentDescription="@string/stats_titulo" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:text="@string/stats_titulo"
+                            android:textColor="@color/text_strong"
+                            android:textStyle="bold"
+                            android:textSize="15sp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/stats_descricao"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+
+                    <!-- GridLayout: 2 colunas de cartões preenchidos por código -->
+                    <GridLayout
+                        android:id="@+id/grid_stats"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:columnCount="2"
+                        android:useDefaultMargins="true" />
                 </LinearLayout>
 
                 <!-- Cartão Planta -->
