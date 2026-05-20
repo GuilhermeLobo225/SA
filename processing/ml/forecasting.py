@@ -313,10 +313,95 @@ def save_all(targets: list[str] | None, test_hours: float):
 
 
 # ============================================================
+# Figura para o relatório (publication-ready)
+# ============================================================
+# Diferente do `--plot` rápido de desenvolvimento: gera figura limpa
+# em PT para incluir no LaTeX (legendas com MAE por modelo, grid suave,
+# alta DPI, formatação de datas no eixo X).
+def plot_forecast_report(target: str,
+                         train: pd.Series,
+                         test: pd.Series,
+                         p_base: pd.Series,
+                         p_hw: pd.Series,
+                         p_lstm: pd.Series,
+                         output_path: Path | str | None = None,
+                         history_hours: int = 24) -> Path:
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+
+    LABELS = {
+        "temperature":     ("Temperatura",                "°C"),
+        "humidity":        ("Humidade relativa",          "%"),
+        "air_quality_raw": ("Qualidade do ar (MQ-135)",   "ADC"),
+        "noise_db":        ("Ruído",                      "dB"),
+        "people":          ("Ocupação",                   "pessoas"),
+    }
+    nice, unit = LABELS.get(target, (target, ""))
+
+    fig, ax = plt.subplots(figsize=(10, 3.8))
+
+    # Histórico de treino (últimas `history_hours` antes do teste)
+    cutoff = test.index[0] - pd.Timedelta(hours=history_hours)
+    hist = train[train.index >= cutoff]
+    ax.plot(hist.index, hist.values,
+            color="#888888", linewidth=1.2, alpha=0.8,
+            label="Histórico (treino)", zorder=1)
+
+    # Sombra suave na janela de teste para a destacar do histórico
+    ax.axvspan(test.index[0], test.index[-1],
+               color="#f4f4f4", zorder=0)
+
+    # Série real
+    ax.plot(test.index, test.values,
+            color="black", linewidth=2.2,
+            label="Real (observado)", zorder=4)
+
+    # Previsões — MAE incluído na legenda
+    specs = [
+        (p_base, "Baseline horária", "#1f77b4", "--"),
+        (p_hw,   "Holt-Winters",     "#ff7f0e", "--"),
+        (p_lstm, "LSTM",             "#2ca02c", "-."),
+    ]
+    for s, name, color, ls in specs:
+        if s is None or s.dropna().empty:
+            continue
+        m = mae(test.values, s.values)
+        label = f"{name}  (MAE = {m:.2f} {unit})".strip()
+        ax.plot(s.index, s.values,
+                color=color, linestyle=ls, linewidth=1.7,
+                label=label, zorder=3)
+
+    # Estilo
+    ax.set_xlabel("Tempo")
+    ax.set_ylabel(f"{nice} ({unit})" if unit else nice)
+    if len(test) >= 2:
+        horizon_h = (test.index[-1] - test.index[0]).total_seconds() / 3600.0
+        ax.set_title(f"Previsão de {nice.lower()} — "
+                     f"janela de teste de {horizon_h:.0f} h")
+    else:
+        ax.set_title(f"Previsão de {nice.lower()}")
+    ax.grid(True, alpha=0.3, linestyle=":")
+    ax.legend(loc="best", fontsize=9, framealpha=0.92)
+
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m %H:%M"))
+    fig.autofmt_xdate(rotation=25)
+    fig.tight_layout()
+
+    if output_path is None:
+        output_path = DATA_DIR / f"forecast_{target}.png"
+    output_path = Path(output_path)
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    log.info("Figura do relatório guardada em %s", output_path)
+    return output_path
+
+
+# ============================================================
 # Runner
 # ============================================================
 def main(target: str, test_hours: float, plot: bool,
-         data_from: str | None = None, data_to: str | None = None):
+         data_from: str | None = None, data_to: str | None = None,
+         plot_report: bool = False):
     s = load_series(target, data_from=data_from, data_to=data_to)
     train, test = train_test_split(s, test_hours=test_hours)
 
@@ -370,6 +455,16 @@ def main(target: str, test_hours: float, plot: bool,
         plt.savefig(out, dpi=120)
         log.info("Gráfico guardado em %s", out)
 
+    if plot_report:
+        plot_forecast_report(
+            target=target,
+            train=train,
+            test=test,
+            p_base=p1,
+            p_hw=p2,
+            p_lstm=p3,
+        )
+
     return 0
 
 
@@ -393,6 +488,9 @@ if __name__ == "__main__":
                     help="Horas de teste no fim da série (default: 0.5 h)")
     ap.add_argument("--plot", action="store_true",
                     help="Gera ml/data/forecast_<target>.png")
+    ap.add_argument("--plot-report", action="store_true",
+                    help="Gera versão publication-ready (PT, MAE na legenda, "
+                         "alta DPI) para incluir no relatório LaTeX")
     ap.add_argument("--data-from", type=str, default=None,
                     help="ISO date — usar apenas pontos a partir desta data")
     ap.add_argument("--data-to",   type=str, default=None,
@@ -407,4 +505,5 @@ if __name__ == "__main__":
         sys.exit(save_all(targets, a.horizon))
     if a.target == "all":
         ap.error("--target=all só funciona em conjunto com --save.")
-    sys.exit(main(a.target, a.horizon, a.plot, a.data_from, a.data_to))
+    sys.exit(main(a.target, a.horizon, a.plot, a.data_from, a.data_to,
+                  plot_report=a.plot_report))
