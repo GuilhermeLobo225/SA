@@ -111,9 +111,12 @@ def predict_holt_winters(train: pd.Series, test_index: pd.DatetimeIndex) -> pd.S
         log.warning("Holt-Winters precisa de >=2 dias de dados; saltando.")
         return pd.Series([np.nan] * len(test_index), index=test_index)
 
+    # `trend=None`: o ambiente sintético é cíclico puro (sem deriva real ao
+    # longo dos dias). Pedir trend aditivo fazia o optimizer divergir entre
+    # soluções equivalentes (warnings de "Optimization failed to converge").
     model = ExponentialSmoothing(
         train.values,
-        trend="add",
+        trend=None,
         seasonal="add",
         seasonal_periods=seasonal_periods,
         initialization_method="estimated",
@@ -126,10 +129,18 @@ def predict_holt_winters(train: pd.Series, test_index: pd.DatetimeIndex) -> pd.S
 # Modelo 3 — LSTM
 # ============================================================
 def predict_lstm(train: pd.Series, test_index: pd.DatetimeIndex,
-                  window: int = 60, epochs: int = 15) -> pd.Series:
+                  window: int = 288, epochs: int = 100,
+                  batch_size: int = 64, lr: float = 1e-3) -> pd.Series:
+    """
+    Window = 288 amostras × 5 min = 24 h, para garantir que a janela cobre
+    pelo menos UM ciclo diário completo (a sazonalidade dominante do sinal).
+    Com `window=60` (5 h) o modelo nunca via o ciclo inteiro e não aprendia
+    a periodicidade.
+    """
     try:
         import torch
         import torch.nn as nn
+        from torch.utils.data import DataLoader, TensorDataset
     except ImportError:
         log.warning("torch em falta — pip install torch")
         return pd.Series([np.nan] * len(test_index), index=test_index)
@@ -172,18 +183,29 @@ def predict_lstm(train: pd.Series, test_index: pd.DatetimeIndex,
             return self.fc(o[:, -1, :])
 
     net = LSTMNet()
-    opt = torch.optim.Adam(net.parameters(), lr=1e-2)
+    opt = torch.optim.Adam(net.parameters(), lr=lr)
     loss_fn = nn.MSELoss()
+
+    # Mini-batching com shuffle: sem isto o passo do gradiente era calculado
+    # sobre o dataset inteiro de uma vez (~4000 amostras), com landscape
+    # péssimo e convergência lenta.
+    ds = TensorDataset(X, y)
+    loader = DataLoader(ds, batch_size=batch_size, shuffle=True)
+    log.info("  LSTM: %d janelas, %d épocas, batch=%d, lr=%.0e",
+             len(ds), epochs, batch_size, lr)
 
     net.train()
     for ep in range(epochs):
-        opt.zero_grad()
-        pred = net(X)
-        loss = loss_fn(pred, y)
-        loss.backward()
-        opt.step()
-        if (ep + 1) % 5 == 0:
-            log.info("  LSTM epoch %2d/%d loss=%.5f", ep + 1, epochs, loss.item())
+        total = 0.0
+        for xb, yb in loader:
+            opt.zero_grad()
+            loss = loss_fn(net(xb), yb)
+            loss.backward()
+            opt.step()
+            total += loss.item() * len(xb)
+        avg = total / len(ds)
+        if (ep + 1) % 10 == 0 or ep == 0:
+            log.info("  LSTM epoch %3d/%d  loss=%.5f", ep + 1, epochs, avg)
 
     # Forecast recursivo: começa nas últimas `window` amostras de train, prevê
     # 1 passo, junta à janela, prevê o seguinte, etc.
@@ -267,9 +289,11 @@ def _train_and_save(target: str, test_hours: float) -> dict:
     if has_hw:
         from statsmodels.tsa.holtwinters import ExponentialSmoothing
         seasonal_periods = 24 * 60 // 5
+        # Espelha a config de `predict_holt_winters`: sem trend para evitar
+        # divergência em séries cíclicas puras.
         full_model = ExponentialSmoothing(
             s.values,
-            trend="add",
+            trend=None,
             seasonal="add",
             seasonal_periods=seasonal_periods,
             initialization_method="estimated",
