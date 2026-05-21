@@ -1,4 +1,11 @@
-# App Móvel — Bibliotecas UMinho
+# 📱 App Móvel — Sala de Estudo Inteligente
+
+![Kotlin](https://img.shields.io/badge/Android-Kotlin-7F52FF)
+![SDK](https://img.shields.io/badge/SDK-34-green)
+![Jetpack](https://img.shields.io/badge/Jetpack-WorkManager-blue)
+![License](https://img.shields.io/badge/License-Academic-lightgrey)
+
+> Cliente móvel do projeto **Sala de Estudo Inteligente** · Sensorização e Ambiente · MIA · UMinho · 2025/26 · ([README principal](../README.md))
 
 App Android nativa em Kotlin que serve como cliente móvel do projeto **Sala
 de Estudo Inteligente**. Espelha a página web do mesmo projeto (lista de

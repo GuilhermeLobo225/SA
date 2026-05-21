@@ -4,7 +4,7 @@ Sala de Estudo Inteligente — API REST
 Expõe dados de ocupação (YOLO) + ambiente (sensor) para o dashboard web e a
 app móvel. Lê do Firebase (projeto Sensor) e serve um JSON unificado por sala.
 
-Contrato público: ver docs/api_contract.md
+Contrato público: ver a secção "Contrato da API REST" no README.md raiz.
 """
 
 import logging
