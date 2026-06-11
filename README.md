@@ -6,6 +6,7 @@
 ![Flask](https://img.shields.io/badge/API-Flask-black)
 ![YOLOv11](https://img.shields.io/badge/Visão-YOLOv11-00BFC4)
 ![Firebase](https://img.shields.io/badge/Cloud-Firebase-FFCA28)
+![Grade](https://img.shields.io/badge/Grade-19%2F20-success)
 ![License](https://img.shields.io/badge/License-Academic-lightgrey)
 
 > **Sensorização e Ambiente** | Mestrado em Inteligência Artificial | Universidade do Minho | 2025/26
